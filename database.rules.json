@@ -1,0 +1,16 @@
+{
+  "rules": {
+    "events": {
+      "new_orders": {
+        ".read": "auth != null",
+        ".write": true
+      }
+    },
+    "notifications": {
+      "latest_order": {
+        ".read": "auth != null",
+        ".write": true
+      }
+    }
+  }
+}

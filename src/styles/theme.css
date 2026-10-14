@@ -1,0 +1,225 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Centralized Color Tokens */
+    --color-brand-50: #F0F7FF;
+    --color-brand-100: #E0EFFE;
+    --color-brand-200: #BAE0FD;
+    --color-brand-300: #7CC5FC;
+    --color-brand-400: #36A7F9;
+    --color-brand-500: #0C89EB;
+    --color-brand-600: #006BCE;
+    --color-brand-700: #0055A7;
+    --color-brand-800: #044889;
+    --color-brand-900: #0A3B70;
+    --color-brand-950: #061A30;
+
+    /* Centralized Gradient System */
+    --gradient-soft: linear-gradient(135deg, #F0F7FF 0%, #E0EFFE 100%);
+    --gradient-sky: linear-gradient(135deg, #E0EFFE 0%, #7CC5FC 100%);
+    --gradient-vibrant: linear-gradient(135deg, #36A7F9 0%, #0C89EB 100%);
+    --gradient-royal: linear-gradient(135deg, #0C89EB 0%, #0055A7 100%);
+    --gradient-deep: linear-gradient(135deg, #0055A7 0%, #0A3B70 100%);
+    --gradient-hero: linear-gradient(135deg, #0C89EB 0%, #0055A7 55%, #0A3B70 100%);
+    --gradient-glass: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(224, 239, 254, 0.75) 100%);
+
+    --surface-bg: #F0F5FA;
+    --surface-card: #FFFFFF;
+    --border-color: rgba(12, 137, 235, 0.2);
+  }
+
+  .dark {
+    --gradient-soft: linear-gradient(135deg, #061A30 0%, #0A3B70 100%);
+    --gradient-sky: linear-gradient(135deg, #0A3B70 0%, #0055A7 100%);
+    --gradient-vibrant: linear-gradient(135deg, #0055A7 0%, #0C89EB 100%);
+    --gradient-royal: linear-gradient(135deg, #0A3B70 0%, #061A30 100%);
+    --gradient-deep: linear-gradient(135deg, #061A30 0%, #0B132B 100%);
+    --gradient-hero: linear-gradient(135deg, #0055A7 0%, #0A3B70 60%, #061A30 100%);
+    --gradient-glass: linear-gradient(135deg, rgba(15, 23, 42, 0.85) 0%, rgba(10, 59, 112, 0.5) 100%);
+
+    --surface-bg: #0B132B;
+    --surface-card: #131C38;
+    --border-color: rgba(30, 41, 59, 0.8);
+  }
+
+  body {
+    background-color: var(--surface-bg);
+    color-scheme: light dark;
+    overflow-x: hidden;
+  }
+}
+
+/* Print CSS Media Rules for Professional A4 Receipt Output */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 15mm;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide all background UI, headers, sidebars, popups, and non-printable elements */
+  body > *:not(#root),
+  aside, nav, header, footer, button, .no-print {
+    display: none !important;
+  }
+
+  /* Reset fixed modal overlay wrappers so they don't shift or clip the printable area */
+  .fixed, div[role="dialog"] {
+    position: static !important;
+    display: block !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+  }
+
+  /* Hide all modal elements EXCEPT #printable-receipt */
+  div[role="dialog"] > div > *:not(:has(#printable-receipt)),
+  div[role="dialog"] header,
+  div[role="dialog"] footer {
+    display: none !important;
+  }
+
+  /* Format #printable-receipt as a clean full-width A4 document */
+  #printable-receipt {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    padding: 24px !important;
+    border: 2px solid #0f172a !important;
+    border-radius: 12px !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    font-size: 11pt !important;
+  }
+
+  #printable-receipt * {
+    color: #0f172a !important;
+    border-color: #cbd5e1 !important;
+  }
+
+  #printable-receipt table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  #printable-receipt th {
+    border-bottom: 2px solid #0f172a !important;
+    padding: 6px 8px !important;
+  }
+
+  #printable-receipt td {
+    padding: 8px 8px !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+  }
+}
+
+/* Glassmorphism & Premium 3D Effects */
+@layer utilities {
+  .bg-gradient-soft { background: var(--gradient-soft); }
+  .bg-gradient-sky { background: var(--gradient-sky); }
+  .bg-gradient-vibrant { background: var(--gradient-vibrant); }
+  .bg-gradient-royal { background: var(--gradient-royal); }
+  .bg-gradient-deep { background: var(--gradient-deep); }
+  .bg-hero-gradient { background: var(--gradient-hero); }
+
+  .glass-surface {
+    background: var(--gradient-glass);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border-color);
+  }
+
+  /* Ultra-Premium Glassmorphic Card */
+  .glass-card-3d {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.92) 0%, rgba(224, 242, 254, 0.65) 100%);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(12, 137, 235, 0.2);
+    box-shadow: 0 15px 35px -10px rgba(12, 137, 235, 0.12), 0 0 20px 0 rgba(255, 255, 255, 0.5) inset;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+
+  .dark .glass-card-3d {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.88) 0%, rgba(10, 59, 112, 0.5) 100%);
+    border: 1px solid rgba(12, 137, 235, 0.25);
+    box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6), 0 0 20px 0 rgba(12, 137, 235, 0.15) inset;
+  }
+
+  .glass-card-3d:hover {
+    transform: translateY(-8px) scale(1.02);
+    box-shadow: 0 30px 60px -20px rgba(12, 137, 235, 0.3), 0 0 25px 0 rgba(255, 255, 255, 0.4) inset;
+  }
+
+  /* Shine Sweep Hover Button Animation */
+  .btn-shine-sweep {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-shine-sweep::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(
+      60deg,
+      transparent 30%,
+      rgba(255, 255, 255, 0.4) 50%,
+      transparent 70%
+    );
+    transform: rotate(30deg) translateX(-100%);
+    transition: transform 0.8s ease;
+  }
+
+  .btn-shine-sweep:hover::after {
+    transform: rotate(30deg) translateX(100%);
+  }
+
+  /* Infinite Scroller Track */
+  .infinite-scroll-track {
+    display: flex;
+    gap: 1rem;
+    width: max-content;
+    animation: scrollTrack 30s linear infinite;
+  }
+
+  .infinite-scroll-track:hover {
+    animation-play-state: paused;
+  }
+
+  @keyframes scrollTrack {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+
+  /* Pulse Glow Animation */
+  .pulse-glow {
+    animation: pulseGlow 2.5s infinite alternate ease-in-out;
+  }
+
+  @keyframes pulseGlow {
+    0% { box-shadow: 0 0 10px rgba(12, 137, 235, 0.3); }
+    100% { box-shadow: 0 0 25px rgba(245, 158, 11, 0.6); }
+  }
+}

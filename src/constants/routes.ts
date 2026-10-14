@@ -1,0 +1,24 @@
+export const ROUTES = {
+  CUSTOMER: {
+    HOME: '/',
+    PRODUCTS: '/products',
+    PRODUCT_DETAILS: '/products/:id',
+    CART: '/cart',
+    WISHLIST: '/wishlist',
+    CHECKOUT: '/checkout',
+    ORDER_CONFIRMATION: '/order-confirmation/:orderId',
+    TRACK_ORDER: '/order',
+    MY_ORDERS: '/my-orders',
+  },
+  ADMIN: {
+    LOGIN: '/admin/login',
+    DASHBOARD: '/admin/dashboard',
+    PRODUCTS: '/admin/products',
+    CATEGORIES: '/admin/categories',
+    ORDERS: '/admin/orders',
+    BANNERS: '/admin/banners',
+    ANNOUNCEMENTS: '/admin/announcements',
+    TAXES: '/admin/taxes',
+    SETTINGS: '/admin/settings',
+  },
+} as const;

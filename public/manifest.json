@@ -1,0 +1,40 @@
+{
+  "name": "Diyas N Duas — Handcrafted Festive Diyas & Sacred Essentials",
+  "short_name": "Diyas N Duas",
+  "description": "Order premium handcrafted festive diyas, brass lamps, and sacred essentials directly from Diyas N Duas.",
+  "start_url": "/",
+  "id": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#061A30",
+  "theme_color": "#F59E0B",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Explore Diyas",
+      "short_name": "Diyas",
+      "description": "Browse festive diyas and lamps catalog",
+      "url": "/products"
+    },
+    {
+      "name": "My Orders",
+      "short_name": "Orders",
+      "description": "Track live order status",
+      "url": "/my-orders"
+    },
+    {
+      "name": "Admin Control Center",
+      "short_name": "Admin",
+      "description": "Store management panel",
+      "url": "/admin"
+    }
+  ]
+}
