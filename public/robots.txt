@@ -1,0 +1,25 @@
+# Diyas N Duas - robots.txt
+# Public festive handcrafted diyas & sacred essentials store
+
+User-agent: *
+Allow: /
+Allow: /products
+Allow: /products/
+Allow: /order
+Allow: /order/
+Allow: /assets/
+Allow: /og-*.jpg
+Allow: /logo.png
+Allow: /pwa_install_banner.jpg
+
+# Disallow private customer state and administrative panels
+Disallow: /admin
+Disallow: /admin/
+Disallow: /cart
+Disallow: /checkout
+Disallow: /wishlist
+Disallow: /my-orders
+Disallow: /order-confirmation/
+
+# Sitemap location
+Sitemap: https://diyasnduas.com/sitemap.xml

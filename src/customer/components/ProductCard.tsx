@@ -44,9 +44,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onSelect }) =
         {mainImage && !imgError ? (
           <img
             src={mainImage}
-            alt={product.name}
+            alt={`${product.name}${product.categoryName ? ` - ${product.categoryName}` : ''} | Diyas N Duas`}
             onError={() => setImgError(true)}
             loading="lazy"
+            decoding="async"
+            width={400}
+            height={400}
             className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-108 ${
               isOutOfStock ? 'grayscale opacity-60' : ''
             }`}

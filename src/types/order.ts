@@ -53,6 +53,7 @@ export interface Order {
   statusHistory: OrderStatusHistoryItem[];
   cancellationReason?: string;
   cancelRequestedAt?: number;
+  fcmToken?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -65,4 +66,5 @@ export type OrderCreateRequest = {
   }>;
   notes?: string;
   couponCode?: string;
+  fcmToken?: string;
 };

@@ -1,0 +1,43 @@
+{
+  "name": "DND Admin — Store Command Center",
+  "short_name": "DND Admin",
+  "description": "Executive Store Control & Realtime Order Management for Diyas N Duas",
+  "start_url": "/admin/dashboard",
+  "id": "/admin/",
+  "scope": "/admin/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#020617",
+  "theme_color": "#0F172A",
+  "icons": [
+    {
+      "src": "/admin-icon.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Live Orders",
+      "short_name": "Orders",
+      "description": "View and manage incoming customer orders",
+      "url": "/admin/orders",
+      "icons": [{ "src": "/admin-icon.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Inventory & Products",
+      "short_name": "Products",
+      "description": "Manage catalog products and stock levels",
+      "url": "/admin/products",
+      "icons": [{ "src": "/admin-icon.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Push Campaigns",
+      "short_name": "Campaigns",
+      "description": "Broadcast promotional push notifications",
+      "url": "/admin/campaigns",
+      "icons": [{ "src": "/admin-icon.png", "sizes": "192x192" }]
+    }
+  ]
+}

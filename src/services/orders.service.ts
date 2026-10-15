@@ -6,6 +6,7 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
+  runTransaction,
   Unsubscribe 
 } from 'firebase/firestore';
 import { ref, set, get, remove, onValue, off } from 'firebase/database';
@@ -15,6 +16,7 @@ import { generateHumanReadableOrderId } from '../utils/orderIdGenerator';
 import { realtimeEventsService } from './realtimeEvents.service';
 import { settingsService } from './settings.service';
 import { couponService } from './coupon.service';
+import { fcmService } from './fcm.service';
 
 const ORDERS_COLLECTION = 'orders';
 const PRODUCTS_COLLECTION = 'products';
@@ -216,132 +218,243 @@ export const ordersService = {
     const now = Date.now();
     const generatedId = `ord_${now}_${Math.floor(1000 + Math.random() * 9000)}`;
 
-    let subtotal = 0;
-    const itemSnapshots = [];
-
-    for (const itemReq of request.items) {
-      let productData: any = null;
-      const productRef = doc(db, PRODUCTS_COLLECTION, itemReq.productId);
-      
-      try {
-        const productSnap = await getDoc(productRef);
-        if (productSnap.exists()) {
-          productData = productSnap.data();
-        }
-      } catch (err) {
-        console.warn('[OrdersService] Firestore product check error:', err);
-      }
-
-      if (!productData) {
-        throw new Error(`Product is no longer available.`);
-      }
-
-      if (productData.stockQuantity < itemReq.quantity) {
-        throw new Error(`Insufficient stock for product "${productData.name}". Available: ${productData.stockQuantity}`);
-      }
-
-      const itemSubtotal = productData.sellingPrice * itemReq.quantity;
-      subtotal += itemSubtotal;
-
-      itemSnapshots.push({
-        productId: itemReq.productId,
-        name: productData.name,
-        unitPrice: productData.sellingPrice,
-        originalUnitPrice: productData.originalPrice || productData.sellingPrice,
-        quantity: itemReq.quantity,
-        image: productData.images?.[0] || '',
-        subtotal: itemSubtotal,
-      });
-
-      // Deduct stock quantity in Firestore
-      const newStock = Math.max(0, productData.stockQuantity - itemReq.quantity);
-      try {
-        await updateDoc(productRef, {
-          stockQuantity: newStock,
-          updatedAt: Date.now(),
-        });
-      } catch (stockErr) {
-        console.warn('[OrdersService] Stock updateDoc fallback setDoc:', stockErr);
-        await setDoc(productRef, { stockQuantity: newStock, updatedAt: Date.now() }, { merge: true });
-      }
-    }
-
-    // Fetch store settings for delivery & taxes
+    // 1. Pre-fetch store settings for delivery fee threshold and taxes
     let deliveryFee = 80;
     let taxRate = 0;
     let taxName = 'GST';
-    let taxAmount = 0;
+    let freeDeliveryThreshold = 1000;
 
     try {
       const storeSettings = await settingsService.getStoreSettings();
-      const threshold = storeSettings.freeDeliveryThreshold !== undefined ? storeSettings.freeDeliveryThreshold : 1000;
-      const standardFee = storeSettings.defaultDeliveryFee !== undefined ? storeSettings.defaultDeliveryFee : 80;
-      deliveryFee = subtotal >= threshold ? 0 : standardFee;
-
+      if (storeSettings.freeDeliveryThreshold !== undefined) {
+        freeDeliveryThreshold = storeSettings.freeDeliveryThreshold;
+      }
+      if (storeSettings.defaultDeliveryFee !== undefined) {
+        deliveryFee = storeSettings.defaultDeliveryFee;
+      }
       if (storeSettings.taxSettings && storeSettings.taxSettings.enabled) {
         taxRate = Number(storeSettings.taxSettings.rate) || 0;
         taxName = storeSettings.taxSettings.name || 'GST';
       }
     } catch (settErr) {
       console.warn('[OrdersService] Could not fetch settings, applying fallback:', settErr);
-      deliveryFee = subtotal >= 1000 ? 0 : 80;
     }
 
-    // Coupon discount validation & calculation
-    let couponDiscount = 0;
-    let validCouponCode = '';
+    let sanitizedData: Order;
 
-    if (request.couponCode) {
-      try {
-        const couponVal = await couponService.validateCoupon(request.couponCode, subtotal);
-        if (couponVal.isValid) {
-          couponDiscount = couponVal.discountAmount;
-          validCouponCode = couponVal.coupon?.code || request.couponCode.toUpperCase();
+    try {
+      // 2. Execute ACID transaction on Firestore (Guarantees isolation and race condition prevention)
+      sanitizedData = await runTransaction(db, async (transaction) => {
+        // Phase A: Concurrent Reads of all requested product documents (All reads MUST happen before writes)
+        const productReads = await Promise.all(
+          request.items.map(async (itemReq) => {
+            const productRef = doc(db, PRODUCTS_COLLECTION, itemReq.productId);
+            const productSnap = await transaction.get(productRef);
+            return { itemReq, productRef, productSnap };
+          })
+        );
+
+        let subtotal = 0;
+        const itemSnapshots = [];
+        const stockUpdates: { ref: any; newStock: number }[] = [];
+
+        // Phase B: Concurrency validation and inventory deduction
+        for (const { itemReq, productRef, productSnap } of productReads) {
+          if (!productSnap.exists()) {
+            throw new Error(`One or more items in your cart are no longer available in our store.`);
+          }
+
+          const productData = productSnap.data();
+          const currentStock = Number(productData.stockQuantity) || 0;
+
+          if (currentStock < itemReq.quantity) {
+            throw new Error(`Insufficient stock for "${productData.name || 'Product'}". Only ${currentStock} left in stock.`);
+          }
+
+          const sellingPrice = Number(productData.sellingPrice) || 0;
+          const itemSubtotal = sellingPrice * itemReq.quantity;
+          subtotal += itemSubtotal;
+
+          itemSnapshots.push({
+            productId: itemReq.productId,
+            name: productData.name,
+            unitPrice: sellingPrice,
+            originalUnitPrice: Number(productData.originalPrice) || sellingPrice,
+            quantity: itemReq.quantity,
+            image: productData.images?.[0] || '',
+            subtotal: itemSubtotal,
+          });
+
+          const newStock = Math.max(0, currentStock - itemReq.quantity);
+          stockUpdates.push({ ref: productRef, newStock });
         }
-      } catch (couponErr) {
-        console.warn('[OrdersService] Coupon validation failed, skipping coupon discount:', couponErr);
+
+        // Phase C: Computations (Delivery, Coupons, Tax)
+        const calculatedDeliveryFee = subtotal >= freeDeliveryThreshold ? 0 : deliveryFee;
+
+        let couponDiscount = 0;
+        let validCouponCode = '';
+        if (request.couponCode) {
+          try {
+            const couponVal = await couponService.validateCoupon(request.couponCode, subtotal);
+            if (couponVal.isValid) {
+              couponDiscount = couponVal.discountAmount;
+              validCouponCode = couponVal.coupon?.code || request.couponCode.toUpperCase();
+            }
+          } catch (couponErr) {
+            console.warn('[OrdersService] Coupon validation inside transaction:', couponErr);
+          }
+        }
+
+        const discountedSubtotal = Math.max(0, subtotal - couponDiscount);
+        let taxAmount = 0;
+        if (taxRate > 0) {
+          taxAmount = Math.round((discountedSubtotal * taxRate) / 100);
+        }
+        const total = discountedSubtotal + taxAmount + calculatedDeliveryFee;
+
+        const newOrderData: Order = {
+          id: generatedId,
+          orderId: humanOrderId,
+          customerInfo: request.customerInfo,
+          items: itemSnapshots,
+          itemCount: itemSnapshots.reduce((sum, item) => sum + item.quantity, 0),
+          subtotal,
+          discountAmount: couponDiscount,
+          couponCode: validCouponCode || undefined,
+          couponDiscount: couponDiscount > 0 ? couponDiscount : undefined,
+          taxAmount: taxAmount > 0 ? taxAmount : undefined,
+          taxRate: taxRate > 0 ? taxRate : undefined,
+          taxName: taxRate > 0 ? taxName : undefined,
+          deliveryFee: calculatedDeliveryFee,
+          total,
+          orderStatus: 'pending',
+          fcmToken: request.fcmToken || undefined,
+          statusHistory: [
+            {
+              status: 'pending',
+              timestamp: now,
+              note: 'Order request received by Diyas N Duas. Pending store confirmation.',
+            }
+          ],
+          createdAt: now,
+          updatedAt: now,
+        };
+
+        const sanitized = sanitizeForFirebase(newOrderData);
+
+        // Phase D: Atomic writes (Stock deduction updates & Order creation)
+        for (const update of stockUpdates) {
+          transaction.update(update.ref, {
+            stockQuantity: update.newStock,
+            updatedAt: now,
+          });
+        }
+
+        const orderDocRef = doc(db, ORDERS_COLLECTION, generatedId);
+        transaction.set(orderDocRef, sanitized);
+
+        return sanitized;
+      });
+    } catch (txError: any) {
+      // If business constraint failed (out of stock, item unavailable), abort and pass directly to UI
+      if (
+        txError?.message?.includes('Insufficient stock') ||
+        txError?.message?.includes('no longer available')
+      ) {
+        throw txError;
       }
-    }
 
-    const discountedSubtotal = Math.max(0, subtotal - couponDiscount);
+      console.warn('[OrdersService] Transaction fallback triggered:', txError);
+      // High-availability fallback (if offline or non-critical error)
+      let subtotal = 0;
+      const itemSnapshots = [];
+      for (const itemReq of request.items) {
+        let productData: any = null;
+        const productRef = doc(db, PRODUCTS_COLLECTION, itemReq.productId);
+        try {
+          const productSnap = await getDoc(productRef);
+          if (productSnap.exists()) productData = productSnap.data();
+        } catch (e) {}
 
-    // Compute Tax on discounted subtotal if enabled
-    if (taxRate > 0) {
-      taxAmount = Math.round((discountedSubtotal * taxRate) / 100);
-    }
-
-    const total = discountedSubtotal + taxAmount + deliveryFee;
-
-    const newOrderData: Order = {
-      id: generatedId,
-      orderId: humanOrderId,
-      customerInfo: request.customerInfo,
-      items: itemSnapshots,
-      itemCount: itemSnapshots.reduce((sum, item) => sum + item.quantity, 0),
-      subtotal,
-      discountAmount: couponDiscount,
-      couponCode: validCouponCode || undefined,
-      couponDiscount: couponDiscount > 0 ? couponDiscount : undefined,
-      taxAmount: taxAmount > 0 ? taxAmount : undefined,
-      taxRate: taxRate > 0 ? taxRate : undefined,
-      taxName: taxRate > 0 ? taxName : undefined,
-      deliveryFee,
-      total,
-      orderStatus: 'pending',
-      statusHistory: [
-        {
-          status: 'pending',
-          timestamp: now,
-          note: 'Order request received by Diyas N Duas. Pending store confirmation.',
+        if (!productData) throw new Error('Product is no longer available.');
+        if ((productData.stockQuantity || 0) < itemReq.quantity) {
+          throw new Error(`Insufficient stock for product "${productData.name}". Available: ${productData.stockQuantity}`);
         }
-      ],
-      createdAt: now,
-      updatedAt: now,
-    };
 
-    const sanitizedData = sanitizeForFirebase(newOrderData);
+        const itemSubtotal = productData.sellingPrice * itemReq.quantity;
+        subtotal += itemSubtotal;
+        itemSnapshots.push({
+          productId: itemReq.productId,
+          name: productData.name,
+          unitPrice: productData.sellingPrice,
+          originalUnitPrice: productData.originalPrice || productData.sellingPrice,
+          quantity: itemReq.quantity,
+          image: productData.images?.[0] || '',
+          subtotal: itemSubtotal,
+        });
 
-    // Save live order to Firebase RTDB for ultra-fast response
+        // Best effort stock update
+        try {
+          const newStock = Math.max(0, (productData.stockQuantity || 0) - itemReq.quantity);
+          await updateDoc(productRef, { stockQuantity: newStock, updatedAt: now });
+        } catch (e) {}
+      }
+
+      const calculatedDeliveryFee = subtotal >= freeDeliveryThreshold ? 0 : deliveryFee;
+      let couponDiscount = 0;
+      let validCouponCode = '';
+      if (request.couponCode) {
+        try {
+          const couponVal = await couponService.validateCoupon(request.couponCode, subtotal);
+          if (couponVal.isValid) {
+            couponDiscount = couponVal.discountAmount;
+            validCouponCode = couponVal.coupon?.code || request.couponCode.toUpperCase();
+          }
+        } catch (e) {}
+      }
+
+      const discountedSubtotal = Math.max(0, subtotal - couponDiscount);
+      let taxAmount = 0;
+      if (taxRate > 0) taxAmount = Math.round((discountedSubtotal * taxRate) / 100);
+      const total = discountedSubtotal + taxAmount + calculatedDeliveryFee;
+
+      const fallbackOrder: Order = {
+        id: generatedId,
+        orderId: humanOrderId,
+        customerInfo: request.customerInfo,
+        items: itemSnapshots,
+        itemCount: itemSnapshots.reduce((sum, item) => sum + item.quantity, 0),
+        subtotal,
+        discountAmount: couponDiscount,
+        couponCode: validCouponCode || undefined,
+        couponDiscount: couponDiscount > 0 ? couponDiscount : undefined,
+        taxAmount: taxAmount > 0 ? taxAmount : undefined,
+        taxRate: taxRate > 0 ? taxRate : undefined,
+        taxName: taxRate > 0 ? taxName : undefined,
+        deliveryFee: calculatedDeliveryFee,
+        total,
+        orderStatus: 'pending',
+        fcmToken: request.fcmToken || undefined,
+        statusHistory: [
+          {
+            status: 'pending',
+            timestamp: now,
+            note: 'Order request received by Diyas N Duas. Pending store confirmation.',
+          }
+        ],
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      sanitizedData = sanitizeForFirebase(fallbackOrder);
+      try {
+        const orderDocRef = doc(db, ORDERS_COLLECTION, generatedId);
+        await setDoc(orderDocRef, sanitizedData);
+      } catch (e) {}
+    }
+
+    // 3. Save live order to Firebase RTDB for instantaneous real-time sync with Admin Dashboard
     try {
       const liveOrderRef = ref(rtdb, `${RTDB_LIVE_ORDERS_PATH}/${generatedId}`);
       await set(liveOrderRef, sanitizedData);
@@ -349,16 +462,20 @@ export const ordersService = {
       console.warn('[OrdersService] RTDB live order write fallback:', rtdbErr);
     }
 
-    // Backup to memory store
+    // 4. Backup to local in-memory store
     MOCK_ORDERS_STORE.unshift(sanitizedData);
 
-    // Broadcast RTDB notification event for admin dashboard popups & audio alerts
-    realtimeEventsService.notifyNewOrder({
-      orderId: humanOrderId,
-      totalAmount: total,
-      customerName: request.customerInfo.fullName,
-      timestamp: now,
-    }).catch(err => console.warn('[RTDB Notification Warning]', err));
+    // 5. Broadcast RTDB notification event for admin dashboard popups & real-time audio alerts
+    try {
+      await realtimeEventsService.notifyNewOrder({
+        orderId: humanOrderId,
+        totalAmount: sanitizedData.total,
+        customerName: request.customerInfo.fullName,
+        timestamp: now,
+      });
+    } catch (err) {
+      console.warn('[RTDB Notification Warning]', err);
+    }
 
     return sanitizedData;
   },
@@ -442,6 +559,13 @@ export const ordersService = {
       } catch (e) {
         console.warn('[OrdersService] RTDB status update warning:', e);
       }
+    }
+
+    // Trigger FCM Web Push Notification to customer's device for all status updates
+    try {
+      fcmService.notifyOrderStatusUpdate(existingOrder.orderId, newStatus, note);
+    } catch (fcmErr) {
+      console.warn('[OrdersService] Push notification dispatch warning:', fcmErr);
     }
 
     // Update local memory store

@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { useCart } from '../../contexts/CartContext';
+import { useToast } from '../../contexts/ToastContext';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { ConfirmationDialog } from '../../components/ui/ConfirmationDialog';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { InsufficientStockModal, StockIssueItem } from '../components/InsufficientStockModal';
 import { formatINR, formatDiscountPercentage } from '../../utils/formatters';
 import { 
   ShoppingBag, 
@@ -14,14 +16,22 @@ import {
   ShieldCheck, 
   Tag,
   Truck,
-  CheckCircle2
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '../../constants/routes';
 import { settingsService } from '../../services/settings.service';
 import { StoreSettings } from '../../types/settings';
+import { useDocumentSeo } from '../hooks/useDocumentSeo';
 
 export const Cart: React.FC = () => {
+  useDocumentSeo({
+    title: 'Your Festive Cart',
+    canonicalPath: '/cart',
+    noindex: true,
+  });
+
   const { 
     cartItems, 
     updateQuantity, 
@@ -32,9 +42,43 @@ export const Cart: React.FC = () => {
     getSavingsTotal 
   } = useCart();
 
+  const toast = useToast();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [stockIssues, setStockIssues] = useState<StockIssueItem[]>([]);
+  const [showStockModal, setShowStockModal] = useState(false);
   const [settings, setSettings] = useState<StoreSettings | null>(null);
   const navigate = useNavigate();
+
+  const handleProceedToCheckout = () => {
+    const issues: StockIssueItem[] = cartItems
+      .filter((item) => item.product.stockQuantity !== undefined && item.quantity > item.product.stockQuantity)
+      .map((item) => ({
+        product: item.product,
+        requestedQuantity: item.quantity,
+        availableStock: Math.max(0, item.product.stockQuantity ?? 0),
+      }));
+
+    if (issues.length > 0) {
+      setStockIssues(issues);
+      setShowStockModal(true);
+      return;
+    }
+
+    navigate(ROUTES.CUSTOMER.CHECKOUT);
+  };
+
+  const handleAdjustStock = () => {
+    stockIssues.forEach(({ product, availableStock }) => {
+      if (availableStock <= 0) {
+        removeFromCart(product.id);
+      } else {
+        updateQuantity(product.id, availableStock);
+      }
+    });
+    setShowStockModal(false);
+    setStockIssues([]);
+    toast.success('Cart Updated', 'Quantities adjusted to available stock.');
+  };
 
   React.useEffect(() => {
     settingsService.getStoreSettings().then(setSettings);
@@ -132,6 +176,21 @@ export const Cart: React.FC = () => {
                         </span>
                       )}
                     </div>
+
+                    {/* Red warning line when quantity exceeds stock */}
+                    {product.stockQuantity !== undefined && quantity > product.stockQuantity && (
+                      <div className="flex items-center gap-1.5 mt-1 text-[11px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 px-2 py-0.5 rounded-md animate-pulse">
+                        <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span>Only {product.stockQuantity} left in stock. Please adjust quantity.</span>
+                      </div>
+                    )}
+
+                    {/* Max available stock reached notice */}
+                    {product.stockQuantity !== undefined && quantity === product.stockQuantity && product.stockQuantity <= 5 && (
+                      <p className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1 mt-0.5">
+                        <span>Only {product.stockQuantity} available in stock</span>
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -150,10 +209,28 @@ export const Cart: React.FC = () => {
                       {quantity}
                     </span>
                     <button
-                      onClick={() => updateQuantity(product.id, quantity + 1)}
+                      onClick={() => {
+                        if (product.stockQuantity !== undefined && quantity >= product.stockQuantity) {
+                          toast.warning(
+                            'Limited Stock Available',
+                            `Only ${product.stockQuantity} piece${product.stockQuantity === 1 ? '' : 's'} available in stock for "${product.name}".`
+                          );
+                          return;
+                        }
+                        updateQuantity(product.id, quantity + 1);
+                      }}
                       disabled={isOutOfStock}
-                      className="w-7 h-7 rounded-lg bg-white dark:bg-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 shadow-xs hover:bg-slate-50 transition-colors"
+                      className={`w-7 h-7 rounded-lg bg-white dark:bg-slate-700 flex items-center justify-center shadow-xs transition-colors ${
+                        product.stockQuantity !== undefined && quantity >= product.stockQuantity
+                          ? 'text-slate-300 dark:text-slate-600 cursor-not-allowed'
+                          : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50'
+                      }`}
                       aria-label="Increase quantity"
+                      title={
+                        product.stockQuantity !== undefined && quantity >= product.stockQuantity
+                          ? `Only ${product.stockQuantity} in stock`
+                          : 'Increase quantity'
+                      }
                     >
                       <Plus className="w-3.5 h-3.5" />
                     </button>
@@ -256,12 +333,14 @@ export const Cart: React.FC = () => {
             </div>
 
             {/* Direct Order Request Trigger */}
-            <Link to={ROUTES.CUSTOMER.CHECKOUT} className="block w-full">
-              <Button size="lg" className="w-full font-extrabold bg-brand-500 hover:bg-brand-600 text-white shadow-lg shadow-brand-500/20 py-3.5">
-                <span>PROCEED TO CHECKOUT</span>
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </Link>
+            <Button
+              onClick={handleProceedToCheckout}
+              size="lg"
+              className="w-full font-extrabold bg-brand-500 hover:bg-brand-600 text-white shadow-lg shadow-brand-500/20 py-3.5"
+            >
+              <span>PROCEED TO CHECKOUT</span>
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
 
             <div className="p-3 rounded-xl bg-brand-50/60 dark:bg-brand-950/40 text-[11px] text-slate-500 dark:text-slate-400 flex items-start gap-2">
               <ShieldCheck className="w-4 h-4 text-brand-600 flex-shrink-0 mt-0.5" />
@@ -270,6 +349,15 @@ export const Cart: React.FC = () => {
           </Card>
         </div>
       </div>
+
+      {/* Insufficient Stock Friendly Vector Alert Modal */}
+      <InsufficientStockModal
+        isOpen={showStockModal}
+        onClose={() => setShowStockModal(false)}
+        stockIssues={stockIssues}
+        onAdjustStock={handleAdjustStock}
+        actionText="Adjust to Available Stock"
+      />
 
       {/* Clear Cart Confirmation Dialog */}
       <ConfirmationDialog

@@ -1,26 +1,29 @@
 import React, { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { 
-  Home, 
-  Grid, 
-  Heart, 
-  ShoppingBag, 
-  Package, 
-  Sun, 
-  Moon, 
-  PhoneCall, 
-  Clock 
+import {
+  Home,
+  Grid,
+  Heart,
+  ShoppingBag,
+  Package,
+  Sun,
+  Moon,
+  PhoneCall,
+  Clock
 } from 'lucide-react';
 import { ROUTES } from '../../constants/routes';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useCart } from '../../contexts/CartContext';
 import { useWishlist } from '../../contexts/WishlistContext';
+import { useToast } from '../../contexts/ToastContext';
 import { localStorageUtil } from '../../utils/localStorage';
 import { AnnouncementBar } from '../components/AnnouncementBar';
 import { PWAInstallModal } from '../components/PWAInstallModal';
+import { NotificationPromptModal } from '../components/NotificationPromptModal';
 import { FestiveBackgroundCanvas } from '../../components/common/FestiveBackgroundCanvas';
 import { env } from '../../config/env';
 import { settingsService } from '../../services/settings.service';
+import { fcmService } from '../../services/fcm.service';
 import { StoreSettings } from '../../types/settings';
 
 export const CustomerLayout: React.FC = () => {
@@ -28,16 +31,49 @@ export const CustomerLayout: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
   const { getCartCount } = useCart();
   const { getWishlistCount } = useWishlist();
+  const toast = useToast();
 
   const [recentOrderCount, setRecentOrderCount] = useState(0);
   const [settings, setSettings] = useState<StoreSettings | null>(null);
+
+  // Surface visual in-app banner toast when notifications fire while browsing
+  useEffect(() => {
+    const handleInAppNotif = (e: any) => {
+      const data = e.detail;
+      if (data && data.title) {
+        toast.info(data.title, data.body || '');
+      }
+    };
+    window.addEventListener('dnd_inapp_notification', handleInAppNotif);
+    return () => {
+      window.removeEventListener('dnd_inapp_notification', handleInAppNotif);
+    };
+  }, []);
 
   useEffect(() => {
     const unsubscribeSettings = settingsService.subscribeToStoreSettings((data) => {
       setSettings(data);
     });
-    return () => unsubscribeSettings();
-  }, []);
+
+    const recentOrders = localStorageUtil.getRecentOrders();
+    const recentOrderIds = recentOrders.map((o) => o.orderId);
+
+    // Listen to real-time foreground broadcast announcements & customer order push events
+    const unsubscribeFCM = fcmService.subscribeToCustomerEvents(recentOrderIds, (eventData) => {
+      fcmService.displayLocalNotification({
+        title: eventData.title,
+        body: eventData.body,
+        image: eventData.image,
+        url: eventData.url || '/products',
+        tag: eventData.tag,
+      });
+    });
+
+    return () => {
+      unsubscribeSettings();
+      unsubscribeFCM();
+    };
+  }, [recentOrderCount]);
 
   useEffect(() => {
     const updateCount = () => {
@@ -89,7 +125,7 @@ export const CustomerLayout: React.FC = () => {
                 DIYAS N DUAS
               </span>
               <span className="block text-[9px] tracking-widest text-amber-600/80 dark:text-amber-400/80 font-bold uppercase -mt-1">
-                Handcrafted Diyas Store
+                Terracotta Diyas Store
               </span>
             </div>
           </Link>
@@ -102,18 +138,16 @@ export const CustomerLayout: React.FC = () => {
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-xl transition-all duration-300 ${
-                    isActive
-                      ? 'bg-brand-500 text-white font-extrabold shadow-md shadow-brand-500/30 scale-105 z-10'
-                      : 'text-slate-600 dark:text-slate-300 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-white/60 dark:hover:bg-slate-800/80'
-                  }`}
+                  className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-xl transition-all duration-300 ${isActive
+                    ? 'bg-brand-500 text-white font-extrabold shadow-md shadow-brand-500/30 scale-105 z-10'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-white/60 dark:hover:bg-slate-800/80'
+                    }`}
                 >
                   <item.icon className="w-4 h-4" />
                   <span>{item.label}</span>
                   {Boolean(item.badge && item.badge > 0) && (
-                    <span className={`px-1.5 py-0.2 text-[10px] font-black rounded-full shadow-xs ${
-                      isActive ? 'bg-white text-brand-600' : 'bg-brand-500 text-white'
-                    }`}>
+                    <span className={`px-1.5 py-0.2 text-[10px] font-black rounded-full shadow-xs ${isActive ? 'bg-white text-brand-600' : 'bg-brand-500 text-white'
+                      }`}>
                       {item.badge}
                     </span>
                   )}
@@ -209,6 +243,9 @@ export const CustomerLayout: React.FC = () => {
 
       {/* First-Time PWA App Install Promo Modal */}
       <PWAInstallModal />
+
+      {/* Super Animated Festive FCM Push Notification Opt-In Modal */}
+      <NotificationPromptModal />
     </div>
   );
 };

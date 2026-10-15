@@ -10,8 +10,15 @@ import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '../../constants/routes';
 import { ProductDetailsView } from '../components/ProductDetailsView';
 import { Product } from '../../types/product';
+import { useDocumentSeo } from '../hooks/useDocumentSeo';
 
 export const Wishlist: React.FC = () => {
+  useDocumentSeo({
+    title: 'Your Festive Wishlist',
+    canonicalPath: '/wishlist',
+    noindex: true,
+  });
+
   const { wishlistItems, removeFromWishlist } = useWishlist();
   const { addToCart } = useCart();
   const navigate = useNavigate();

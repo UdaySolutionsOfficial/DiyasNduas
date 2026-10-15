@@ -35,9 +35,9 @@ export const WelcomeExperience: React.FC<{ onComplete: () => void }> = ({ onComp
           />
         </div>
         <div className="space-y-1">
-          <h1 className="text-3xl sm:text-4xl font-black tracking-tight bg-gradient-to-r from-amber-200 via-amber-400 to-amber-100 bg-clip-text text-transparent">
+          <p className="text-3xl sm:text-4xl font-black tracking-tight bg-gradient-to-r from-amber-200 via-amber-400 to-amber-100 bg-clip-text text-transparent">
             DIYAS N DUAS
-          </h1>
+          </p>
           <p className="text-xs font-semibold text-amber-300 tracking-widest uppercase">
             Handcrafted Festive Diyas & Sacred Light
           </p>

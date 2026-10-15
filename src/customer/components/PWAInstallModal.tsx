@@ -46,6 +46,7 @@ export const PWAInstallModal: React.FC = () => {
   const handleDismiss = () => {
     localStorage.setItem(PWA_PROMPT_STORAGE_KEY, 'true');
     setIsOpen(false);
+    window.dispatchEvent(new CustomEvent('pwa-modal-closed'));
   };
 
   const handleInstallApp = async () => {
@@ -63,11 +64,13 @@ export const PWAInstallModal: React.FC = () => {
         setIsInstalling(false);
         setDeferredPrompt(null);
         setIsOpen(false);
+        window.dispatchEvent(new CustomEvent('pwa-modal-closed'));
       }
     } else {
       // Direct instruction fallback if browser prompt already handled by OS
       alert('To install Diyas N Duas:\n• On Chrome/Android: Tap the 3 dots menu ➔ "Install App"\n• On iPhone/Safari: Tap Share ➔ "Add to Home Screen"');
       setIsOpen(false);
+      window.dispatchEvent(new CustomEvent('pwa-modal-closed'));
     }
   };
 

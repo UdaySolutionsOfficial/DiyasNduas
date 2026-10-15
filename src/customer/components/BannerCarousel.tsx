@@ -108,10 +108,14 @@ export const BannerCarousel: React.FC = () => {
                 )}
                 <img
                   src={banner.imageUrl}
-                  alt={hasTitle ? cleanTitle : 'Diyas N Duas Banner'}
+                  alt={hasTitle ? `${cleanTitle} | Diyas N Duas` : 'Festive Handcrafted Diyas & Sacred Essentials | Diyas N Duas'}
                   className="w-full h-full object-cover select-none"
                   draggable={false}
                   loading={idx === 0 ? 'eager' : 'lazy'}
+                  // @ts-ignore
+                  fetchpriority={idx === 0 ? 'high' : undefined}
+                  width={1376}
+                  height={768}
                 />
               </picture>
 

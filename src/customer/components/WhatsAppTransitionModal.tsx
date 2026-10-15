@@ -34,10 +34,6 @@ export const WhatsAppTransitionModal: React.FC<WhatsAppTransitionModalProps> = (
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          if (!hasTriggeredRef.current) {
-            hasTriggeredRef.current = true;
-            onConfirmWhatsApp();
-          }
           return 0;
         }
         return prev - 1;
@@ -45,7 +41,14 @@ export const WhatsAppTransitionModal: React.FC<WhatsAppTransitionModalProps> = (
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isOpen, onConfirmWhatsApp]);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen && countdown === 0 && !hasTriggeredRef.current) {
+      hasTriggeredRef.current = true;
+      onConfirmWhatsApp();
+    }
+  }, [isOpen, countdown, onConfirmWhatsApp]);
 
   const handleManualClick = () => {
     if (!hasTriggeredRef.current) {

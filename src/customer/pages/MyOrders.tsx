@@ -11,8 +11,15 @@ import { Package, Trash2, Eye, RefreshCw } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ROUTES } from '../../constants/routes';
 import { useToast } from '../../contexts/ToastContext';
+import { useDocumentSeo } from '../hooks/useDocumentSeo';
 
 export const MyOrders: React.FC = () => {
+  useDocumentSeo({
+    title: 'My Orders',
+    canonicalPath: '/my-orders',
+    noindex: true,
+  });
+
   const [recentRefs, setRecentRefs] = useState<RecentOrderReference[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);

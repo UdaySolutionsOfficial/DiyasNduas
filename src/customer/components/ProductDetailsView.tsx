@@ -56,8 +56,11 @@ export const ProductDetailsView: React.FC<ProductDetailsViewProps> = ({ product,
           {currentImg && !imgError ? (
             <img
               src={currentImg}
-              alt={product.name}
+              alt={`${product.name}${product.categoryName ? ` - ${product.categoryName}` : ''} - Handcrafted Diya | Diyas N Duas`}
               onError={() => setImgError(true)}
+              decoding="async"
+              width={600}
+              height={600}
               className={`w-full h-full object-cover transition-transform duration-700 hover:scale-105 ${isOutOfStock ? 'grayscale opacity-60' : ''}`}
             />
           ) : (

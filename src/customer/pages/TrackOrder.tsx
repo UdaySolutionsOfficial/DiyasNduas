@@ -16,11 +16,20 @@ import { useToast } from '../../contexts/ToastContext';
 import { settingsService } from '../../services/settings.service';
 import { StoreSettings } from '../../types/settings';
 import { Search, Package, Printer, MessageSquare, Copy, Phone, HelpCircle, AlertTriangle, XCircle } from 'lucide-react';
+import { useDocumentSeo } from '../hooks/useDocumentSeo';
 
 export const TrackOrder: React.FC = () => {
+  useDocumentSeo({
+    title: 'Track Your Order Status',
+    description: 'Check the real-time shipping and packaging status of your Diyas N Duas order using your order ID.',
+    canonicalPath: '/order',
+    ogImage: 'https://diyasnduas.com/og-home.jpg',
+    ogImageAlt: 'Diyas N Duas Order Tracking',
+  });
+
   const { orderId: routeOrderId } = useParams<{ orderId: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const queryOrderId = searchParams.get('orderId') || '';
+  const queryOrderId = searchParams.get('orderId') || searchParams.get('id') || searchParams.get('order') || '';
 
   const activeOrderId = routeOrderId || queryOrderId || '';
 
@@ -28,6 +37,14 @@ export const TrackOrder: React.FC = () => {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(Boolean(activeOrderId));
   const [searched, setSearched] = useState(Boolean(activeOrderId));
+
+  useEffect(() => {
+    if (activeOrderId) {
+      setInputOrderId(activeOrderId);
+      setSearched(true);
+      setLoading(true);
+    }
+  }, [activeOrderId]);
   const [recentOrders, setRecentOrders] = useState<RecentOrderReference[]>([]);
   const [showReceipt, setShowReceipt] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);

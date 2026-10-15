@@ -7,10 +7,11 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Products collection: Public read, Admin write
+    // Products collection: Public read, stock quantity update on orders, Admin full write
     match /products/{productId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stockQuantity', 'updatedAt']) || isAdmin();
+      allow create, delete: if isAdmin();
     }
 
     // Categories collection: Public read, Admin write
@@ -42,6 +43,27 @@ service cloud.firestore {
     match /settings/{settingId} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    // FCM Device Tokens: Public create/write to subscribe, Admin read
+    match /fcm_tokens/{tokenId} {
+      allow read, write: if true;
+    }
+
+    // Admin FCM Tokens: Admin device registration for instant order push alerts
+    match /admin_fcm_tokens/{tokenId} {
+      allow read, write: if true;
+    }
+
+    // Push Notification Campaigns: Public read (for in-app banners), Admin write
+    match /campaigns/{campaignId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Order Notifications collection: Public read & write
+    match /order_notifications/{orderId} {
+      allow read, write: if true;
     }
   }
 }

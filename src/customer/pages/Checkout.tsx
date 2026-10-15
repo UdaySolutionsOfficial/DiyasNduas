@@ -1,14 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useCart } from '../../contexts/CartContext';
 import { useToast } from '../../contexts/ToastContext';
 import { CheckoutForm } from '../components/CheckoutForm';
+import { CheckoutNotificationToggle } from '../components/CheckoutNotificationToggle';
 import { WhatsAppTransitionModal } from '../components/WhatsAppTransitionModal';
+import { InsufficientStockModal, StockIssueItem } from '../components/InsufficientStockModal';
 import { CustomerInfo, Order } from '../../types/order';
 import { StoreSettings } from '../../types/settings';
 import { Coupon } from '../../types/coupon';
 import { ordersService } from '../../services/orders.service';
 import { settingsService } from '../../services/settings.service';
 import { couponService } from '../../services/coupon.service';
+import { fcmService } from '../../services/fcm.service';
 import { localStorageUtil } from '../../utils/localStorage';
 import { openWhatsAppOrderLink } from '../../utils/whatsapp';
 import { formatINR, formatDiscountPercentage } from '../../utils/formatters';
@@ -33,8 +36,15 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '../../constants/routes';
+import { useDocumentSeo } from '../hooks/useDocumentSeo';
 
 export const Checkout: React.FC = () => {
+  useDocumentSeo({
+    title: 'Secure Checkout',
+    canonicalPath: '/checkout',
+    noindex: true,
+  });
+
   const { 
     cartItems, 
     updateQuantity, 
@@ -66,6 +76,10 @@ export const Checkout: React.FC = () => {
   const [pendingOrder, setPendingOrder] = useState<Order | null>(null);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
 
+  // Insufficient Stock Modal State
+  const [stockIssues, setStockIssues] = useState<StockIssueItem[]>([]);
+  const [showStockModal, setShowStockModal] = useState(false);
+
   // Coupon & Promo Code State
   const [showPromoInput, setShowPromoInput] = useState(false);
   const [promoCodeInput, setPromoCodeInput] = useState('');
@@ -73,6 +87,10 @@ export const Checkout: React.FC = () => {
   const [couponDiscount, setCouponDiscount] = useState(0);
   const [couponMessage, setCouponMessage] = useState<{ text: string; isError: boolean } | null>(null);
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
+  const [notificationsActive, setNotificationsActive] = useState(true);
+  const handleToggleNotification = useCallback((enabled: boolean) => {
+    setNotificationsActive(enabled);
+  }, []);
 
   useEffect(() => {
     settingsService.getStoreSettings().then(setSettings);
@@ -233,6 +251,21 @@ export const Checkout: React.FC = () => {
       return;
     }
 
+    // Pre-validate stock availability for all cart items before submitting
+    const clientStockIssues: StockIssueItem[] = cartItems
+      .filter((item) => item.product.stockQuantity !== undefined && item.quantity > item.product.stockQuantity)
+      .map((item) => ({
+        product: item.product,
+        requestedQuantity: item.quantity,
+        availableStock: Math.max(0, item.product.stockQuantity ?? 0),
+      }));
+
+    if (clientStockIssues.length > 0) {
+      setStockIssues(clientStockIssues);
+      setShowStockModal(true);
+      return;
+    }
+
     try {
       setIsSubmitting(true);
 
@@ -249,6 +282,7 @@ export const Checkout: React.FC = () => {
         })),
         notes: customerInfo.notes?.trim(),
         couponCode: appliedCoupon ? appliedCoupon.code : undefined,
+        fcmToken: notificationsActive ? (fcmService.getLocalToken() || undefined) : undefined,
       };
 
       const createdOrder: Order = await ordersService.createOrderAtomic(orderRequest);
@@ -260,6 +294,18 @@ export const Checkout: React.FC = () => {
         createdAt: createdOrder.createdAt,
       });
 
+      // Link order to device FCM token and send instant order placement push notification if enabled
+      if (notificationsActive) {
+        fcmService.linkOrderToDeviceToken(createdOrder.orderId);
+        fcmService.notifyOrderStatusUpdate(createdOrder.orderId, 'pending');
+        fcmService.displayLocalNotification({
+          title: `🪔 Order Placed (#${createdOrder.orderId})`,
+          body: 'Your festive order has been placed with Diyas N Duas!',
+          url: `/track-order?id=${createdOrder.orderId}`,
+          tag: `order-${createdOrder.orderId}-pending`,
+        });
+      }
+
       toast.success('Order Request Submitted!', `Order Reference #${createdOrder.orderId} received successfully.`);
 
       // Trigger 5-Second WhatsApp Countdown Modal
@@ -267,6 +313,33 @@ export const Checkout: React.FC = () => {
       setShowWhatsAppModal(true);
     } catch (err: any) {
       console.error('[Checkout Error]', err);
+      const errMsg = err?.message || '';
+
+      // If the error is about insufficient stock, show the friendly InsufficientStockModal instead of harsh error toast
+      if (errMsg.toLowerCase().includes('insufficient stock') || errMsg.toLowerCase().includes('left in stock')) {
+        const matchedItem = cartItems.find((i) => errMsg.includes(i.product.name));
+        const parsedMatch = errMsg.match(/Only\s+(\d+)\s+left/i);
+        const parsedStock = parsedMatch ? parseInt(parsedMatch[1], 10) : 1;
+
+        const serverIssues: StockIssueItem[] = matchedItem
+          ? [
+              {
+                product: matchedItem.product,
+                requestedQuantity: matchedItem.quantity,
+                availableStock: parsedStock,
+              },
+            ]
+          : cartItems.map((i) => ({
+              product: i.product,
+              requestedQuantity: i.quantity,
+              availableStock: Math.max(0, i.product.stockQuantity ?? 0),
+            }));
+
+        setStockIssues(serverIssues);
+        setShowStockModal(true);
+        return;
+      }
+
       toast.error(
         'Order Creation Failed',
         err.message || 'Sorry, we could not place your order right now. Your cart remains safe.'
@@ -274,6 +347,19 @@ export const Checkout: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleAdjustStock = () => {
+    stockIssues.forEach(({ product, availableStock }) => {
+      if (availableStock <= 0) {
+        removeFromCart(product.id);
+      } else {
+        updateQuantity(product.id, availableStock);
+      }
+    });
+    setShowStockModal(false);
+    setStockIssues([]);
+    toast.success('Cart Updated', 'Quantity adjusted to available stock. You can now confirm your order!');
   };
 
   const handleLaunchWhatsApp = () => {
@@ -408,6 +494,12 @@ export const Checkout: React.FC = () => {
             />
           </Card>
 
+          {/* Instant Order Status Push Notification Preference Toggle */}
+          <CheckoutNotificationToggle
+            onToggleChange={handleToggleNotification}
+            disabled={isSubmitting || isOrderingDisabled}
+          />
+
           {/* Items Review */}
           <Card glass className="p-6 space-y-4">
             <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
@@ -427,17 +519,20 @@ export const Checkout: React.FC = () => {
                 return (
                   <div
                     key={product.id}
-                    className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 text-xs sm:text-sm"
+                    className="p-3 sm:p-3.5 rounded-2xl bg-slate-50/90 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 text-xs sm:text-sm space-y-2.5 sm:space-y-0 sm:flex sm:items-center sm:justify-between sm:gap-4 transition-all"
                   >
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                    {/* Left: Product Image & Details */}
+                    <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
                       <img
-                        src={product.images?.[0] || ''}
+                        src={product.images?.[0] || '/logo.png'}
                         alt={product.name}
-                        className="w-12 h-12 rounded-lg object-cover bg-slate-200 dark:bg-slate-800 flex-shrink-0"
+                        className="w-12 h-12 rounded-xl object-cover bg-slate-200 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 flex-shrink-0"
                       />
-                      <div className="min-w-0">
-                        <h4 className="font-bold text-slate-900 dark:text-slate-100 truncate">{product.name}</h4>
-                        <div className="flex items-baseline gap-1.5 text-xs text-slate-500">
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-slate-100 truncate">
+                          {product.name}
+                        </h4>
+                        <div className="flex items-baseline gap-1.5 text-xs text-slate-500 mt-0.5">
                           <span className="font-semibold text-slate-900 dark:text-slate-100">
                             {formatINR(product.sellingPrice)}
                           </span>
@@ -445,42 +540,81 @@ export const Checkout: React.FC = () => {
                             <span className="text-[10px] text-rose-500 font-extrabold">{discountPercent}% OFF</span>
                           )}
                         </div>
+
+                        {/* Red warning line when quantity exceeds stock */}
+                        {product.stockQuantity !== undefined && quantity > product.stockQuantity && (
+                          <div className="flex items-center gap-1.5 mt-1 text-[11px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 px-2 py-0.5 rounded-md animate-pulse">
+                            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                            <span>Only {product.stockQuantity} left in stock. Please adjust quantity.</span>
+                          </div>
+                        )}
+
+                        {/* Max available stock reached notice */}
+                        {product.stockQuantity !== undefined && quantity === product.stockQuantity && product.stockQuantity <= 5 && (
+                          <p className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1 mt-0.5">
+                            <span>Only {product.stockQuantity} available in stock</span>
+                          </p>
+                        )}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700">
+                    {/* Right / Bottom on Mobile: Quantity Pill, Subtotal & Remove Action */}
+                    <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200/60 dark:border-slate-800/60 flex-shrink-0">
+                      <div className="flex items-center gap-1 bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs">
                         <button
                           type="button"
                           disabled={isSubmitting || isOrderingDisabled}
                           onClick={() => updateQuantity(product.id, quantity - 1)}
-                          className="w-6 h-6 rounded flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-100"
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                          aria-label="Decrease quantity"
                         >
-                          <Minus className="w-3 h-3" />
+                          <Minus className="w-3.5 h-3.5" />
                         </button>
-                        <span className="w-5 text-center font-bold text-xs">{quantity}</span>
+                        <span className="w-6 text-center font-bold text-xs">{quantity}</span>
                         <button
                           type="button"
                           disabled={isSubmitting || isOrderingDisabled}
-                          onClick={() => updateQuantity(product.id, quantity + 1)}
-                          className="w-6 h-6 rounded flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-100"
+                          onClick={() => {
+                            if (product.stockQuantity !== undefined && quantity >= product.stockQuantity) {
+                              toast.warning(
+                                'Limited Stock Available',
+                                `Only ${product.stockQuantity} piece${product.stockQuantity === 1 ? '' : 's'} available in stock for "${product.name}".`
+                              );
+                              return;
+                            }
+                            updateQuantity(product.id, quantity + 1);
+                          }}
+                          className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
+                            product.stockQuantity !== undefined && quantity >= product.stockQuantity
+                              ? 'text-slate-300 dark:text-slate-600 cursor-not-allowed'
+                              : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700'
+                          }`}
+                          aria-label="Increase quantity"
+                          title={
+                            product.stockQuantity !== undefined && quantity >= product.stockQuantity
+                              ? `Only ${product.stockQuantity} left in stock`
+                              : 'Increase quantity'
+                          }
                         >
-                          <Plus className="w-3 h-3" />
+                          <Plus className="w-3.5 h-3.5" />
                         </button>
                       </div>
 
-                      <span className="font-black text-slate-900 dark:text-slate-100 min-w-[65px] text-right">
-                        {formatINR(itemSubtotal)}
-                      </span>
+                      <div className="flex items-center gap-2.5">
+                        <span className="font-black text-sm text-slate-900 dark:text-slate-100 min-w-[65px] text-right">
+                          {formatINR(itemSubtotal)}
+                        </span>
 
-                      <button
-                        type="button"
-                        disabled={isSubmitting || isOrderingDisabled}
-                        onClick={() => removeFromCart(product.id)}
-                        className="text-slate-400 hover:text-rose-600 p-1"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                        <button
+                          type="button"
+                          disabled={isSubmitting || isOrderingDisabled}
+                          onClick={() => removeFromCart(product.id)}
+                          className="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                          title="Remove item"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -674,6 +808,15 @@ export const Checkout: React.FC = () => {
           </Card>
         </div>
       </form>
+
+      {/* Insufficient Stock Friendly Vector Alert Modal */}
+      <InsufficientStockModal
+        isOpen={showStockModal}
+        onClose={() => setShowStockModal(false)}
+        stockIssues={stockIssues}
+        onAdjustStock={handleAdjustStock}
+        onReviewCart={() => setShowStockModal(false)}
+      />
 
       {/* 5-Second Animated WhatsApp Transition Popup Modal */}
       <WhatsAppTransitionModal

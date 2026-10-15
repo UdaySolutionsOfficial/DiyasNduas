@@ -327,8 +327,11 @@ export const HorizontalProductShowcase: React.FC<HorizontalProductShowcaseProps>
                 <div className="relative h-44 sm:h-52 w-full rounded-2xl overflow-hidden bg-slate-950 flex-shrink-0 shadow-inner border border-slate-100 dark:border-slate-800">
                   <img
                     src={imageSrc}
-                    alt={product.name}
+                    alt={`${product.name} - Handcrafted Diya | Diyas N Duas`}
                     loading="lazy"
+                    decoding="async"
+                    width={280}
+                    height={210}
                     draggable={false}
                     className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500 pointer-events-none"
                   />

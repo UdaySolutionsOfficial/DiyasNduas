@@ -18,14 +18,36 @@ import {
   Sparkles,
   Info,
   Instagram,
-  Truck
+  Truck,
+  BellRing
 } from 'lucide-react';
+import { fcmService } from '../../services/fcm.service';
 
 export const AdminSettings: React.FC = () => {
   const [settings, setSettings] = useState<StoreSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [devicePushActive, setDevicePushActive] = useState<boolean>(() => {
+    return typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted';
+  });
   const toast = useToast();
+
+  const handleToggleDevicePush = async (enable: boolean) => {
+    if (enable) {
+      const res = await fcmService.registerAdminDeviceToken();
+      if (res.success) {
+        setDevicePushActive(true);
+        toast.success('Push Alerts Enabled', 'This device will now receive instant push alerts when new orders are placed.');
+      } else {
+        toast.error('Permission Required', res.error || 'Please allow notification permission in your browser.');
+        setDevicePushActive(false);
+      }
+    } else {
+      localStorage.removeItem('dnd_admin_push_registered');
+      setDevicePushActive(false);
+      toast.info('Push Alerts Disabled', 'Notifications disabled for this session.');
+    }
+  };
 
   useEffect(() => {
     settingsService.getStoreSettings().then((data) => {
@@ -281,6 +303,40 @@ export const AdminSettings: React.FC = () => {
                 className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-brand-500 focus:outline-none"
               />
             </div>
+          </div>
+        </Card>
+
+        {/* Admin Device Push Notifications Toggle */}
+        <Card glass className="p-6 space-y-4">
+          <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
+            <BellRing className="w-5 h-5 text-amber-500" />
+            <h3 className="font-bold text-base">Admin Push Notifications (This Device)</h3>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-sm">Instant Order Push Notifications on this Device</span>
+                {devicePushActive ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                    Active
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-400">
+                    Disabled
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500">
+                Receive instant push notifications with sound when a new order is placed, even when your browser is closed or phone screen is locked.
+              </p>
+            </div>
+
+            <Toggle
+              checked={devicePushActive}
+              onChange={handleToggleDevicePush}
+              label=""
+            />
           </div>
         </Card>
 

@@ -1,16 +1,36 @@
 {
   "rules": {
+    "liveOrders": {
+      ".read": true,
+      ".write": true
+    },
     "events": {
       "new_orders": {
-        ".read": "auth != null",
+        ".read": true,
         ".write": true
       }
     },
     "notifications": {
       "latest_order": {
-        ".read": "auth != null",
+        ".read": true,
         ".write": true
       }
+    },
+    "order_updates": {
+      ".read": true,
+      ".write": true
+    },
+    "order_notifications": {
+      ".read": true,
+      ".write": true
+    },
+    "fcm_subscribers": {
+      ".read": true,
+      ".write": true
+    },
+    "broadcast_campaigns": {
+      ".read": true,
+      ".write": true
     }
   }
 }

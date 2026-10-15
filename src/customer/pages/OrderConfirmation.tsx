@@ -19,8 +19,14 @@ import {
   Package
 } from 'lucide-react';
 import { ROUTES } from '../../constants/routes';
+import { useDocumentSeo } from '../hooks/useDocumentSeo';
 
 export const OrderConfirmation: React.FC = () => {
+  useDocumentSeo({
+    title: 'Order Confirmed',
+    noindex: true,
+  });
+
   const { orderId } = useParams<{ orderId: string }>();
   const location = useLocation();
   const toast = useToast();

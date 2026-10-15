@@ -21,6 +21,7 @@ import { AdminCategories } from './admin/pages/AdminCategories';
 import { AdminOrders } from './admin/pages/AdminOrders';
 import { AdminBanners } from './admin/pages/AdminBanners';
 import { AdminAnnouncements } from './admin/pages/AdminAnnouncements';
+import { AdminCampaigns } from './admin/pages/AdminCampaigns';
 import { AdminTaxes } from './admin/pages/AdminTaxes';
 import { AdminSettings } from './admin/pages/AdminSettings';
 
@@ -38,7 +39,14 @@ export const router = createBrowserRouter([
       { path: 'order-confirmation/:orderId', element: <OrderConfirmation /> },
       { path: 'order', element: <TrackOrder /> },
       { path: 'order/:orderId', element: <TrackOrder /> },
+      { path: 'track-order', element: <TrackOrder /> },
+      { path: 'track-order/:orderId', element: <TrackOrder /> },
+      { path: 'track', element: <TrackOrder /> },
+      { path: 'track/:orderId', element: <TrackOrder /> },
+      { path: 'tracking', element: <TrackOrder /> },
+      { path: 'tracking/:orderId', element: <TrackOrder /> },
       { path: 'my-orders', element: <MyOrders /> },
+      { path: 'orders', element: <MyOrders /> },
     ],
   },
   {
@@ -60,6 +68,7 @@ export const router = createBrowserRouter([
       { path: 'orders', element: <AdminOrders /> },
       { path: 'banners', element: <AdminBanners /> },
       { path: 'announcements', element: <AdminAnnouncements /> },
+      { path: 'campaigns', element: <AdminCampaigns /> },
       { path: 'taxes', element: <AdminTaxes /> },
       { path: 'settings', element: <AdminSettings /> },
     ],

@@ -12,8 +12,16 @@ import { Product } from '../../types/product';
 import { StoreSettings } from '../../types/settings';
 import { Sparkles, ShieldCheck, Truck, PhoneCall, MapPin, MessageSquare, Clock, Mail, Instagram, Navigation, ExternalLink } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
+import { useDocumentSeo } from '../hooks/useDocumentSeo';
 
 export const Home: React.FC = () => {
+  useDocumentSeo({
+    canonicalPath: '/',
+    ogImage: 'https://diyasnduas.com/og-home.jpg',
+    ogImageAlt: 'Diyas N Duas — Handcrafted Festive Diyas & Sacred Essentials',
+    description: 'Shop handcrafted festive diyas, terracotta clay lamps, brass deepams, and sacred essentials at Diyas N Duas. Direct safe delivery across India.',
+  });
+
   // 1. Welcome Experience State
   const [showWelcome, setShowWelcome] = useState<boolean>(() => {
     return !sessionStorage.getItem('ck_welcome_seen');
@@ -171,6 +179,16 @@ export const Home: React.FC = () => {
       <div className="space-y-8 animate-fade-in pb-8 relative z-10">
         {/* Promotional Banners Carousel */}
         <BannerCarousel />
+
+        {/* Semantic SEO Heading Block */}
+        <header className="space-y-1 pt-1">
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-slate-100">
+            Handcrafted Festive Diyas &amp; Sacred Essentials
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">
+            Explore artisan terracotta clay lamps, brass deepams, and festive home decor handcrafted for sacred celebrations.
+          </p>
+        </header>
 
         {/* Search & Category Tabs (Clean Browsing on Home) */}
         <section className="space-y-4">

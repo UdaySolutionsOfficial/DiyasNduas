@@ -143,8 +143,9 @@ export const OrderStatusTimeline: React.FC<OrderStatusTimelineProps> = ({
     <div className="space-y-6">
       <div className="relative pl-6 sm:pl-8 space-y-6 border-l-2 border-slate-200 dark:border-slate-800">
         {steps.map((step, idx) => {
-          const isCompleted = idx < activeIndex;
-          const isCurrent = idx === activeIndex;
+          const isDeliveredState = currentStatus === 'delivered' && step.statusKey === 'delivered';
+          const isCompleted = idx < activeIndex || isDeliveredState;
+          const isCurrent = idx === activeIndex && !isDeliveredState;
 
           const IconComponent = step.icon;
 
@@ -190,6 +191,8 @@ export const OrderStatusTimeline: React.FC<OrderStatusTimelineProps> = ({
                         ? 'text-rose-600 dark:text-rose-400'
                         : step.isWarning
                         ? 'text-amber-600 dark:text-amber-400'
+                        : isDeliveredState
+                        ? 'text-emerald-600 dark:text-emerald-400 font-bold'
                         : isCurrent
                         ? 'text-brand-600 dark:text-brand-400'
                         : isCompleted
@@ -200,7 +203,11 @@ export const OrderStatusTimeline: React.FC<OrderStatusTimelineProps> = ({
                     {step.title}
                   </h4>
 
-                  {isCurrent && (
+                  {isDeliveredState ? (
+                    <span className="px-2 py-0.2 text-[9px] font-black uppercase rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300">
+                      COMPLETED
+                    </span>
+                  ) : isCurrent ? (
                     <span
                       className={`px-2 py-0.2 text-[9px] font-black uppercase rounded-full ${
                         step.isWarning
@@ -212,7 +219,7 @@ export const OrderStatusTimeline: React.FC<OrderStatusTimelineProps> = ({
                     >
                       CURRENT STATE
                     </span>
-                  )}
+                  ) : null}
                 </div>
 
                 <p

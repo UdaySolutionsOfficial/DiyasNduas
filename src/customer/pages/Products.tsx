@@ -7,8 +7,17 @@ import { ProductDetailsView } from '../components/ProductDetailsView';
 import { productsService } from '../../services/products.service';
 import { Product } from '../../types/product';
 import { FilterValues } from '../components/FlipkartFilterDrawer';
+import { useDocumentSeo } from '../hooks/useDocumentSeo';
 
 export const Products: React.FC = () => {
+  useDocumentSeo({
+    title: 'Full Festive Diyas Collection',
+    description: 'Browse all handcrafted clay diyas, brass lamps, and sacred essentials. Filter by price, category, and discounts with safe India-wide delivery.',
+    canonicalPath: '/products',
+    ogImage: 'https://diyasnduas.com/og-products.jpg',
+    ogImageAlt: 'Diyas N Duas Handcrafted Terracotta & Brass Diyas Collection',
+  });
+
   const [searchParams, setSearchParams] = useSearchParams();
   const initialCategory = searchParams.get('category');
 

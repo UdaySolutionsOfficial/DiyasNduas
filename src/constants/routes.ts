@@ -18,6 +18,7 @@ export const ROUTES = {
     ORDERS: '/admin/orders',
     BANNERS: '/admin/banners',
     ANNOUNCEMENTS: '/admin/announcements',
+    CAMPAIGNS: '/admin/campaigns',
     TAXES: '/admin/taxes',
     SETTINGS: '/admin/settings',
   },

@@ -27,6 +27,22 @@ export const rtdb: Database = getDatabase(app);
 export const auth: Auth = getAuth(app);
 export const storage: FirebaseStorage = getStorage(app);
 
+// Safe export for Firebase Cloud Messaging in browser environments supporting service workers
+export const getMessagingInstance = async () => {
+  if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window) {
+    try {
+      const { getMessaging, isSupported } = await import('firebase/messaging');
+      const supported = await isSupported();
+      if (supported) {
+        return getMessaging(app);
+      }
+    } catch (err) {
+      console.warn('[Firebase Messaging] Unsupported or blocked:', err);
+    }
+  }
+  return null;
+};
+
 export const isFirebaseReady = env.firebase.isConfigured;
 
 export default app;

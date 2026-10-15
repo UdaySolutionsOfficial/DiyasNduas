@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  <url>
+    <loc>https://diyasnduas.com/</loc>
+    <lastmod>2026-10-14</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+    <image:image>
+      <image:loc>https://diyasnduas.com/og-home.jpg</image:loc>
+      <image:title>Diyas N Duas — Handcrafted Festive Diyas and Sacred Essentials</image:title>
+      <image:caption>Terracotta clay diyas, brass deepams, and festive home decor handcrafted for celebrations and prayers.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://diyasnduas.com/products</loc>
+    <lastmod>2026-10-14</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+    <image:image>
+      <image:loc>https://diyasnduas.com/og-products.jpg</image:loc>
+      <image:title>Diyas N Duas Complete Product Collection</image:title>
+      <image:caption>Browse our entire catalog of traditional clay diyas, brass puja lamps, urli bowls, and festive gift sets.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://diyasnduas.com/order</loc>
+    <lastmod>2026-10-14</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+</urlset>
