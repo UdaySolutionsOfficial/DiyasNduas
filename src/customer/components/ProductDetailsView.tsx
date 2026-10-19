@@ -4,7 +4,6 @@ import { BottomSheet } from '../../components/ui/BottomSheet';
 import { Modal } from '../../components/ui/Modal';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
-import { TypewriterText } from '../../components/common/TypewriterText';
 import { formatINR, formatDiscountPercentage } from '../../utils/formatters';
 import { ShoppingBag, Zap, Sparkles, ImageOff, ShieldCheck, Truck, Heart, Minus, Plus } from 'lucide-react';
 import { useCart } from '../../contexts/CartContext';
@@ -195,14 +194,34 @@ export const ProductDetailsView: React.FC<ProductDetailsViewProps> = ({ product,
             </div>
           )}
 
-          {/* Typewriter Description Revealer */}
-          <div className="space-y-2 p-4 rounded-2xl bg-slate-100/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
+          {/* Product Details & Multi-Paragraph Sections */}
+          <div className="space-y-3 p-4 rounded-2xl bg-slate-100/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
             <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-600 dark:text-brand-400">
               Product Details
             </h4>
-            <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium min-h-[50px]">
-              <TypewriterText text={descriptionText} speedMs={20} />
+
+            {/* Main Description */}
+            <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium whitespace-pre-line">
+              {descriptionText}
             </p>
+
+            {/* Additional Structured Paragraphs */}
+            {product.sections && product.sections.length > 0 && (
+              <div className="space-y-3 pt-1">
+                {product.sections.map((sec, idx) => (
+                  <div key={idx} className="pt-2.5 border-t border-slate-200/70 dark:border-slate-800/70 space-y-1">
+                    {sec.title && sec.title.trim() && (
+                      <h5 className="text-xs font-bold text-slate-900 dark:text-slate-100 tracking-wide">
+                        {sec.title}
+                      </h5>
+                    )}
+                    <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium whitespace-pre-line">
+                      {sec.content}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Value Proposition Highlights */}

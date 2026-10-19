@@ -20,6 +20,7 @@ export const ROUTES = {
     ANNOUNCEMENTS: '/admin/announcements',
     CAMPAIGNS: '/admin/campaigns',
     TAXES: '/admin/taxes',
+    REVENUE: '/admin/revenue',
     SETTINGS: '/admin/settings',
   },
 } as const;

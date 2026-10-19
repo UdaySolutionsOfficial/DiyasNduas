@@ -1,4 +1,4 @@
-import { ref, set, push, onValue, off } from 'firebase/database';
+import { ref, set, push, onValue, off, get, remove } from 'firebase/database';
 import { rtdb } from '../firebase/config';
 import { OrderStatus } from '../types/order';
 
@@ -21,6 +21,26 @@ export const realtimeEventsService = {
       await set(latestRef, event);
     } catch (error) {
       console.warn('[RealtimeEventsService] RTDB push failed or unconfigured:', error);
+    }
+  },
+
+  /**
+   * Clears the latest order notification from RTDB if it matches the specified orderId.
+   * Prevents stale order popups from recurring when reopening the dashboard.
+   */
+  async clearLatestOrderIfMatches(orderId: string): Promise<void> {
+    try {
+      const formatted = orderId.trim().toUpperCase();
+      const latestRef = ref(rtdb, 'notifications/latest_order');
+      const snap = await get(latestRef);
+      if (snap.exists()) {
+        const val = snap.val();
+        if (val && (val.orderId === orderId || val.orderId?.toUpperCase() === formatted)) {
+          await remove(latestRef);
+        }
+      }
+    } catch (error) {
+      console.warn('[RealtimeEventsService] Failed to clear latest order:', error);
     }
   },
 

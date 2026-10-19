@@ -1,5 +1,6 @@
 export interface StoreSettings {
   storeName: string;
+  logoUrl?: string;
   contactPhone: string;
   whatsappNumber: string;
   storeEmail?: string;

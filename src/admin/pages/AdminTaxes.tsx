@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { couponService } from '../../services/coupon.service';
 import { settingsService } from '../../services/settings.service';
+import { ordersService } from '../../services/orders.service';
+import { revenueExportService } from '../../services/revenueExport.service';
 import { Coupon } from '../../types/coupon';
+import { Order } from '../../types/order';
 import { StoreSettings } from '../../types/settings';
 import { CouponModal } from '../components/CouponModal';
 import { Card } from '../../components/ui/Card';
@@ -24,7 +27,8 @@ import {
   Percent,
   IndianRupee,
   Calendar,
-  Clock
+  Clock,
+  FileSpreadsheet
 } from 'lucide-react';
 
 export const AdminTaxes: React.FC = () => {
@@ -42,6 +46,9 @@ export const AdminTaxes: React.FC = () => {
   const [isCouponModalOpen, setIsCouponModalOpen] = useState(false);
   const [couponToDelete, setCouponToDelete] = useState<Coupon | null>(null);
 
+  // Orders State for Realtime Promo Code Redemptions & Usage Monitoring
+  const [orders, setOrders] = useState<Order[]>([]);
+
   // Load Settings
   useEffect(() => {
     const unsub = settingsService.subscribeToStoreSettings((data) => {
@@ -56,6 +63,14 @@ export const AdminTaxes: React.FC = () => {
     const unsub = couponService.subscribeToCoupons((couponList) => {
       setCoupons(couponList);
       setCouponsLoading(false);
+    });
+    return () => unsub();
+  }, []);
+
+  // Load Orders Realtime for Coupon Usage Monitoring
+  useEffect(() => {
+    const unsub = ordersService.subscribeToAllOrders((liveOrders) => {
+      setOrders(liveOrders);
     });
     return () => unsub();
   }, []);
@@ -277,7 +292,7 @@ export const AdminTaxes: React.FC = () => {
         {/* Right Column: Promotional Coupons List (7 cols on lg) */}
         <div className="lg:col-span-7 space-y-4">
           <Card glass className="p-5 space-y-4 rounded-3xl">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-200 dark:border-slate-800">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
                   <TicketPercent className="w-4 h-4" />
@@ -287,23 +302,35 @@ export const AdminTaxes: React.FC = () => {
                     Promo Discount Coupons ({coupons.length})
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    Create %, flat cash discounts, expiry dates, or deactivate anytime
+                    Create %, flat cash discounts, monitor redemptions & export usage reports
                   </p>
                 </div>
               </div>
 
-              <Button
-                onClick={() => {
-                  setSelectedCoupon(null);
-                  setIsCouponModalOpen(true);
-                }}
-                variant="outline"
-                size="sm"
-                className="font-bold self-start sm:self-auto"
-              >
-                <Plus className="w-3.5 h-3.5 mr-1" />
-                <span>New Coupon</span>
-              </Button>
+              <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                <Button
+                  onClick={() => revenueExportService.exportCouponsUsageReport(coupons, orders)}
+                  variant="primary"
+                  size="sm"
+                  className="font-bold flex items-center gap-1.5 shadow-md shadow-emerald-500/20 bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-700 hover:from-emerald-600 hover:to-teal-800 text-white border-none"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span>Download Coupons Excel</span>
+                </Button>
+
+                <Button
+                  onClick={() => {
+                    setSelectedCoupon(null);
+                    setIsCouponModalOpen(true);
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="font-bold"
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  <span>New Coupon</span>
+                </Button>
+              </div>
             </div>
 
             {coupons.length === 0 ? (
@@ -316,6 +343,11 @@ export const AdminTaxes: React.FC = () => {
               <div className="space-y-3">
                 {coupons.map((coupon) => {
                   const isExpired = coupon.expiresAt ? coupon.expiresAt < Date.now() : false;
+                  const redeemedOrders = orders.filter(
+                    o => o.orderStatus !== 'cancelled' && o.couponCode && o.couponCode.trim().toUpperCase() === coupon.code.trim().toUpperCase()
+                  );
+                  const totalStoreOrders = orders.filter(o => o.orderStatus !== 'cancelled').length;
+                  const totalDiscountGiven = redeemedOrders.reduce((sum, o) => sum + (o.discountAmount || o.couponDiscount || 0), 0);
 
                   return (
                     <div
@@ -346,6 +378,10 @@ export const AdminTaxes: React.FC = () => {
                                 INACTIVE
                               </Badge>
                             )}
+
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                              {redeemedOrders.length}/{totalStoreOrders} Orders Used • {formatINR(totalDiscountGiven)} Saved
+                            </span>
 
                             <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
                               {coupon.discountType === 'percentage' ? (

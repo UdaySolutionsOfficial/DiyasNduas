@@ -24,6 +24,7 @@ import { AdminAnnouncements } from './admin/pages/AdminAnnouncements';
 import { AdminCampaigns } from './admin/pages/AdminCampaigns';
 import { AdminTaxes } from './admin/pages/AdminTaxes';
 import { AdminSettings } from './admin/pages/AdminSettings';
+import { AdminRevenue } from './admin/pages/AdminRevenue';
 
 export const router = createBrowserRouter([
   {
@@ -70,6 +71,8 @@ export const router = createBrowserRouter([
       { path: 'announcements', element: <AdminAnnouncements /> },
       { path: 'campaigns', element: <AdminCampaigns /> },
       { path: 'taxes', element: <AdminTaxes /> },
+      { path: 'revenue', element: <AdminRevenue /> },
+      { path: 'analytics', element: <AdminRevenue /> },
       { path: 'settings', element: <AdminSettings /> },
     ],
   },

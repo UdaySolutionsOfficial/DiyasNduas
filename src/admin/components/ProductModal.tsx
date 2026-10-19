@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Product, ProductDraft } from '../../types/product';
+import { Product, ProductDraft, ProductSection } from '../../types/product';
 import { Category } from '../../types/category';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
@@ -7,7 +7,7 @@ import { Select } from '../../components/ui/Select';
 import { Toggle } from '../../components/ui/Toggle';
 import { Button } from '../../components/ui/Button';
 import { formatDiscountPercentage } from '../../utils/formatters';
-import { Tag, Package, Image as ImageIcon, Upload, X, Star } from 'lucide-react';
+import { Tag, Package, Image as ImageIcon, Upload, X, Star, Plus } from 'lucide-react';
 import { compressImageFile } from '../../utils/imageCompressor';
 
 export interface ProductModalProps {
@@ -27,9 +27,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 }) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [sections, setSections] = useState<ProductSection[]>([]);
   const [categoryId, setCategoryId] = useState('');
   const [originalPrice, setOriginalPrice] = useState(500);
   const [sellingPrice, setSellingPrice] = useState(350);
+  const [actualCost, setActualCost] = useState<number | ''>('');
   const [stockQuantity, setStockQuantity] = useState(50);
   const [badge, setBadge] = useState('');
   const [images, setImages] = useState<string[]>([]);
@@ -45,9 +47,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     if (product) {
       setName(product.name);
       setDescription(product.description || '');
+      setSections(product.sections && Array.isArray(product.sections) ? [...product.sections] : []);
       setCategoryId(product.categoryId);
       setOriginalPrice(product.originalPrice);
       setSellingPrice(product.sellingPrice);
+      setActualCost(product.actualCost !== undefined && product.actualCost > 0 ? product.actualCost : '');
       setStockQuantity(product.stockQuantity);
       setBadge(product.badge || '');
       setImages(product.images && product.images.length > 0 ? product.images : []);
@@ -56,9 +60,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     } else {
       setName('');
       setDescription('');
+      setSections([]);
       setCategoryId(categories[0]?.id || '');
       setOriginalPrice(500);
       setSellingPrice(350);
+      setActualCost('');
       setStockQuantity(50);
       setBadge('');
       setImages([]);
@@ -108,6 +114,22 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
   const calculatedDiscount = formatDiscountPercentage(originalPrice, sellingPrice);
 
+  const handleAddSection = () => {
+    setSections((prev) => [...prev, { title: '', content: '' }]);
+  };
+
+  const handleUpdateSection = (index: number, field: 'title' | 'content', value: string) => {
+    setSections((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
+  };
+
+  const handleRemoveSection = (index: number) => {
+    setSections((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors: Record<string, string> = {};
@@ -129,13 +151,22 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         ? images 
         : ['https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=800&q=80'];
 
+      const cleanedSections = sections
+        .map((s) => ({
+          title: s.title ? s.title.trim() : '',
+          content: s.content ? s.content.trim() : '',
+        }))
+        .filter((s) => s.content.length > 0 || (s.title && s.title.length > 0));
+
       const draft: ProductDraft = {
         name: name.trim(),
         description: description.trim(),
+        sections: cleanedSections.length > 0 ? cleanedSections : undefined,
         categoryId,
         categoryName: selectedCat?.name || '',
         originalPrice: Number(originalPrice),
         sellingPrice: Number(sellingPrice),
+        actualCost: actualCost !== '' ? Number(actualCost) : 0,
         stockQuantity: Number(stockQuantity),
         images: finalImages,
         badge: badge.trim() || '',
@@ -176,7 +207,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
           />
         )}
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <Input
             label="MRP Original Price (₹) *"
             type="number"
@@ -191,14 +222,36 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             onChange={(e) => setSellingPrice(Number(e.target.value))}
             error={errors.sellingPrice}
           />
+          <Input
+            label="Actual Cost (₹)"
+            type="number"
+            placeholder="e.g. 200 (Admin only)"
+            value={actualCost}
+            onChange={(e) => setActualCost(e.target.value === '' ? '' : Number(e.target.value))}
+            helperText="Admin only — hidden from customers"
+          />
         </div>
 
-        {/* Automatic Discount Math Display */}
-        <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-between text-xs font-bold">
-          <span className="text-slate-500">Calculated Discount:</span>
-          <span className="text-emerald-600 dark:text-emerald-400 font-extrabold text-sm">
-            {calculatedDiscount}% OFF
-          </span>
+        {/* Automatic Discount & Profit Margin Insights Display */}
+        <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs font-bold">
+          <div className="flex items-center gap-1.5">
+            <span className="text-slate-500">Calculated Discount:</span>
+            <span className="text-emerald-600 dark:text-emerald-400 font-extrabold text-sm">
+              {calculatedDiscount}% OFF
+            </span>
+          </div>
+
+          {actualCost !== '' && Number(actualCost) > 0 && (
+            <div className="flex items-center gap-1.5 border-t sm:border-t-0 sm:border-l border-slate-200 dark:border-slate-700 pt-1.5 sm:pt-0 sm:pl-3">
+              <span className="text-slate-500">Estimated Unit Profit:</span>
+              <span className={`font-mono font-black text-sm ${sellingPrice - Number(actualCost) >= 0 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-500'}`}>
+                ₹{sellingPrice - Number(actualCost)}
+                <span className="text-[10px] font-bold ml-1 opacity-80">
+                  ({Math.round(((sellingPrice - Number(actualCost)) / (sellingPrice || 1)) * 100)}% margin)
+                </span>
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -306,15 +359,63 @@ export const ProductModal: React.FC<ProductModalProps> = ({
           )}
         </div>
 
-        <div className="space-y-1">
-          <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Description</label>
+        {/* Dynamic Multi-Paragraph Description Section */}
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              Description
+            </label>
+            <button
+              type="button"
+              onClick={handleAddSection}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-brand-500/10 hover:bg-brand-500/20 text-brand-600 dark:text-brand-400 border border-brand-500/30 text-xs font-bold transition-all shadow-xs cursor-pointer group"
+              title="Add another paragraph or section"
+            >
+              <Plus className="w-3.5 h-3.5 group-hover:scale-110 transition-transform text-brand-500" />
+              <span>Add Paragraph</span>
+            </button>
+          </div>
+
           <textarea
             rows={2}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Product details, material (brass/clay), dimensions, oil capacity..."
-            className="w-full text-sm rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2.5"
+            placeholder="Main product details, material (brass/clay), dimensions..."
+            className="w-full text-sm rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2.5 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all"
           />
+
+          {/* Dynamic Additional Paragraphs */}
+          {sections.map((sec, idx) => (
+            <div
+              key={idx}
+              className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/70 space-y-2 relative transition-all"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <input
+                  type="text"
+                  value={sec.title || ''}
+                  onChange={(e) => handleUpdateSection(idx, 'title', e.target.value)}
+                  placeholder={`Paragraph ${idx + 2} Title (Optional, e.g. Where to Place, How to use)`}
+                  className="flex-1 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleRemoveSection(idx)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                  title="Remove this paragraph"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <textarea
+                rows={2}
+                value={sec.content}
+                onChange={(e) => handleUpdateSection(idx, 'content', e.target.value)}
+                placeholder="Write paragraph content..."
+                className="w-full text-sm rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2.5 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all"
+              />
+            </div>
+          ))}
         </div>
 
         <div className="pt-2 flex items-center justify-between border-t border-slate-200 dark:border-slate-800">

@@ -40,8 +40,8 @@ export const FestiveBackgroundCanvas: React.FC = () => {
     const particles: Particle[] = [];
 
     const colors = theme === 'dark' 
-      ? ['#F59E0B', '#3B82F6', '#60A5FA', '#FCD34D', '#EC4899']
-      : ['#0C89EB', '#F59E0B', '#3B82F6', '#FBBF24', '#006BCE'];
+      ? ['#B89551', '#B9653C', '#E28C5F', '#D4AF37', '#70232B', '#F7F1E7']
+      : ['#B9653C', '#B89551', '#70232B', '#D4AF37', '#91333D', '#E28C5F'];
 
     for (let i = 0; i < particleCount; i++) {
       particles.push({
@@ -73,11 +73,11 @@ export const FestiveBackgroundCanvas: React.FC = () => {
       // Draw subtle mouse ambient glow orb
       const ambientGrad = ctx.createRadialGradient(mouseX, mouseY, 0, mouseX, mouseY, 250);
       if (theme === 'dark') {
-        ambientGrad.addColorStop(0, 'rgba(12, 137, 235, 0.08)');
-        ambientGrad.addColorStop(1, 'rgba(12, 137, 235, 0)');
+        ambientGrad.addColorStop(0, 'rgba(184, 149, 81, 0.08)');
+        ambientGrad.addColorStop(1, 'rgba(112, 35, 43, 0)');
       } else {
-        ambientGrad.addColorStop(0, 'rgba(54, 167, 249, 0.12)');
-        ambientGrad.addColorStop(1, 'rgba(54, 167, 249, 0)');
+        ambientGrad.addColorStop(0, 'rgba(185, 101, 60, 0.10)');
+        ambientGrad.addColorStop(1, 'rgba(184, 149, 81, 0)');
       }
       ctx.fillStyle = ambientGrad;
       ctx.fillRect(0, 0, width, height);

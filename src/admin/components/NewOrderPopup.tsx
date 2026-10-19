@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { realtimeEventsService, NewOrderNotificationEvent } from '../../services/realtimeEvents.service';
 import { ordersService } from '../../services/orders.service';
 import { Order } from '../../types/order';
@@ -12,23 +12,97 @@ export interface NewOrderPopupProps {
   onPrintReceipt: (order: Order) => void;
 }
 
+const ACK_STORAGE_KEY = 'dnd_acknowledged_order_popups';
+
+const loadAcknowledgedIds = (): Set<string> => {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const raw = localStorage.getItem(ACK_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return new Set(parsed);
+      }
+    }
+  } catch (e) {
+    console.warn('[NewOrderPopup] Failed to read acknowledged IDs from localStorage:', e);
+  }
+  return new Set();
+};
+
+const persistAcknowledgedId = (orderId: string) => {
+  if (typeof window === 'undefined') return;
+  try {
+    const currentSet = loadAcknowledgedIds();
+    currentSet.add(orderId);
+    // Retain the last 100 acknowledged order IDs to prevent unbounded memory growth
+    const arr = Array.from(currentSet).slice(-100);
+    localStorage.setItem(ACK_STORAGE_KEY, JSON.stringify(arr));
+  } catch (e) {
+    console.warn('[NewOrderPopup] Failed to save acknowledged ID to localStorage:', e);
+  }
+};
+
 export const NewOrderPopup: React.FC<NewOrderPopupProps> = ({
   onViewOrder,
   onPrintReceipt,
 }) => {
   const [event, setEvent] = useState<NewOrderNotificationEvent | null>(null);
   const [fullOrder, setFullOrder] = useState<Order | null>(null);
-  const [acknowledgedIds, setAcknowledgedIds] = useState<Set<string>>(new Set());
+  const [acknowledgedIds, setAcknowledgedIds] = useState<Set<string>>(loadAcknowledgedIds);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const acknowledgeOrder = (orderId: string) => {
+    persistAcknowledgedId(orderId);
+    setAcknowledgedIds((prev) => new Set(prev).add(orderId));
+    // Clear latest order from RTDB if matching to protect other admin tabs
+    realtimeEventsService.clearLatestOrderIfMatches(orderId).catch(() => {});
+  };
 
   useEffect(() => {
     // Subscribe to RTDB new order notification events
-    const unsubscribe = realtimeEventsService.subscribeToNewOrderEvents((newEvent) => {
-      if (newEvent && !acknowledgedIds.has(newEvent.orderId)) {
+    const unsubscribe = realtimeEventsService.subscribeToNewOrderEvents(async (newEvent) => {
+      if (!newEvent || !newEvent.orderId) return;
+
+      const orderId = newEvent.orderId;
+
+      // 1. If already acknowledged in state or localStorage, ignore completely
+      const currentAck = loadAcknowledgedIds();
+      if (currentAck.has(orderId) || acknowledgedIds.has(orderId)) {
+        return;
+      }
+
+      // 2. Fetch authoritative order to inspect true status
+      try {
+        const ord = await ordersService.getOrderByHumanReadableId(orderId);
+        if (!isMountedRef.current) return;
+
+        // If order no longer exists or couldn't be loaded, do nothing
+        if (!ord) return;
+
+        // 3. STRICT STATUS GUARD:
+        // A "NEW ORDER" popup is ONLY allowed if the order is genuinely 'pending'.
+        // If it was already confirmed, processing, ready, delivered, or cancelled,
+        // it must NEVER appear as a popup. Automatically acknowledge and dismiss.
+        if (ord.orderStatus !== 'pending') {
+          acknowledgeOrder(orderId);
+          return;
+        }
+
+        // Double check acknowledgment in case it changed during async fetch
+        if (loadAcknowledgedIds().has(orderId)) return;
+
+        setFullOrder(ord);
         setEvent(newEvent);
-        // Fetch authoritative order from Firestore
-        ordersService.getOrderByHumanReadableId(newEvent.orderId).then((ord) => {
-          if (ord) setFullOrder(ord);
-        });
+      } catch (err) {
+        console.warn('[NewOrderPopup] Failed to inspect order status:', err);
       }
     });
 
@@ -40,23 +114,33 @@ export const NewOrderPopup: React.FC<NewOrderPopupProps> = ({
   }
 
   const handleDismiss = () => {
-    setAcknowledgedIds((prev) => new Set(prev).add(event.orderId));
+    if (event) {
+      acknowledgeOrder(event.orderId);
+    }
     setEvent(null);
     setFullOrder(null);
   };
 
   const handleView = () => {
-    onViewOrder(fullOrder);
-    handleDismiss();
+    if (event && fullOrder) {
+      acknowledgeOrder(event.orderId);
+      onViewOrder(fullOrder);
+    }
+    setEvent(null);
+    setFullOrder(null);
   };
 
   const handlePrint = () => {
-    onPrintReceipt(fullOrder);
-    handleDismiss();
+    if (event && fullOrder) {
+      acknowledgeOrder(event.orderId);
+      onPrintReceipt(fullOrder);
+    }
+    setEvent(null);
+    setFullOrder(null);
   };
 
   return (
-    <Modal isOpen={Boolean(event)} onClose={handleDismiss}>
+    <Modal isOpen={Boolean(event && fullOrder)} onClose={handleDismiss}>
       <div className="space-y-5 animate-scale-in">
         {/* Header Alert Icon */}
         <div className="flex items-center gap-3 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400">

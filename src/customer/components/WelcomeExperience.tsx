@@ -1,9 +1,15 @@
 import React, { useEffect, useState } from 'react';
+import { settingsService } from '../../services/settings.service';
 
 export const WelcomeExperience: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
   const [fade, setFade] = useState(false);
+  const [logoUrl, setLogoUrl] = useState('/logo.png');
 
   useEffect(() => {
+    settingsService.getStoreSettings().then((s) => {
+      if (s.logoUrl) setLogoUrl(s.logoUrl);
+    });
+
     // 1.2s delay before fade out begins
     const timer1 = setTimeout(() => {
       setFade(true);
@@ -29,7 +35,7 @@ export const WelcomeExperience: React.FC<{ onComplete: () => void }> = ({ onComp
       <div className="text-center space-y-4 px-6 animate-scale-in">
         <div className="w-20 h-20 rounded-full mx-auto overflow-hidden shadow-2xl shadow-amber-500/40 border-2 border-amber-400/80 p-0.5 bg-slate-900">
           <img
-            src="/logo.png"
+            src={logoUrl}
             alt="Diyas N Duas Logo"
             className="w-full h-full object-cover rounded-full"
           />

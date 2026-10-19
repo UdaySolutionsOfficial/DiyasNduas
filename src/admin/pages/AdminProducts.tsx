@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { productsService } from '../../services/products.service';
 import { categoriesService } from '../../services/categories.service';
 import { Product, ProductDraft } from '../../types/product';
@@ -11,8 +11,9 @@ import { SearchInput } from '../../components/ui/SearchInput';
 import { Loading } from '../../components/ui/Loading';
 import { ConfirmationDialog } from '../../components/ui/ConfirmationDialog';
 import { formatINR, formatDiscountPercentage } from '../../utils/formatters';
-import { Plus, Edit2, Power, Trash2 } from 'lucide-react';
+import { Plus, Edit2, Power, Trash2, FileSpreadsheet, Layers } from 'lucide-react';
 import { useToast } from '../../contexts/ToastContext';
+import { revenueExportService } from '../../services/revenueExport.service';
 
 export const AdminProducts: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -20,6 +21,7 @@ export const AdminProducts: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [filterTab, setFilterTab] = useState<'all' | 'active' | 'inactive' | 'low_stock' | 'featured'>('all');
 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -37,7 +39,7 @@ export const AdminProducts: React.FC = () => {
       setLoading(false);
     }, false);
 
-    categoriesService.getAllCategories(false).then((cats) => {
+    categoriesService.getAllCategories().then((cats) => {
       setCategories(cats);
     });
 
@@ -84,6 +86,13 @@ export const AdminProducts: React.FC = () => {
     }
   };
 
+  // Only real categories created and active in Category Management
+  const categoryOptions = useMemo(() => {
+    return categories
+      .filter((c) => c.isActive !== false)
+      .map((c) => ({ id: c.id, name: c.name }));
+  }, [categories]);
+
   // Search & Filter Logic
   const filteredProducts = products.filter((p) => {
     const matchesSearch =
@@ -91,6 +100,15 @@ export const AdminProducts: React.FC = () => {
       (p.categoryName && p.categoryName.toLowerCase().includes(searchQuery.toLowerCase()));
 
     if (!matchesSearch) return false;
+
+    if (selectedCategory !== 'all') {
+      const selectedOption = categoryOptions.find((c) => c.id === selectedCategory);
+      const matchesCategory =
+        p.categoryId === selectedCategory ||
+        p.categoryName === selectedCategory ||
+        (selectedOption && p.categoryName?.trim().toLowerCase() === selectedOption.name.trim().toLowerCase());
+      if (!matchesCategory) return false;
+    }
 
     if (filterTab === 'active') return p.isActive;
     if (filterTab === 'inactive') return !p.isActive;
@@ -112,35 +130,78 @@ export const AdminProducts: React.FC = () => {
           <p className="text-sm text-slate-500">Manage products, stock levels, selling prices, and discounts.</p>
         </div>
 
-        <Button
-          onClick={() => {
-            setSelectedProduct(null);
-            setIsModalOpen(true);
-          }}
-          variant="primary"
-          size="md"
-          className="font-bold inline-flex items-center gap-1.5"
-          leftIcon={<Plus className="w-4 h-4" />}
-        >
-          <span>Add New Product</span>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            onClick={() => revenueExportService.exportProductsCatalog(products)}
+            variant="secondary"
+            size="md"
+            className="font-bold inline-flex items-center gap-1.5"
+            leftIcon={<FileSpreadsheet className="w-4 h-4 text-emerald-500" />}
+          >
+            <span>Export Catalog ({products.length})</span>
+          </Button>
+
+          <Button
+            onClick={() => {
+              setSelectedProduct(null);
+              setIsModalOpen(true);
+            }}
+            variant="primary"
+            size="md"
+            className="font-bold inline-flex items-center gap-1.5"
+            leftIcon={<Plus className="w-4 h-4" />}
+          >
+            <span>Add New Product</span>
+          </Button>
+        </div>
       </div>
 
-      {/* Search & Filter Controls - No Horizontal Scrollbar */}
+      {/* Search & Filter Controls */}
       <Card glass className="p-4">
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
-          <SearchInput
-            placeholder="Search products by name..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onClear={() => setSearchQuery('')}
-            className="w-full lg:max-w-xs"
-          />
+        <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1">
+            <SearchInput
+              placeholder="Search products by name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onClear={() => setSearchQuery('')}
+              className="w-full sm:max-w-xs"
+            />
+
+            {/* Category Dropdown Filter */}
+            <div className="relative min-w-[210px]">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-brand-500">
+                <Layers className="w-4 h-4" />
+              </div>
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="w-full pl-9 pr-8 py-2 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-brand-500 shadow-xs cursor-pointer transition-all appearance-none"
+              >
+                <option value="all">All Categories ({products.length})</option>
+                {categoryOptions.map((cat) => {
+                  const count = products.filter(
+                    (p) => p.categoryId === cat.id || p.categoryName?.trim().toLowerCase() === cat.name.trim().toLowerCase()
+                  ).length;
+                  return (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name} ({count})
+                    </option>
+                  );
+                })}
+              </select>
+              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
+                <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 20 20">
+                  <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+                </svg>
+              </div>
+            </div>
+          </div>
 
           {/* Filter Pills Container without Scrollbar */}
           <div className="flex flex-wrap items-center gap-1.5">
             {[
-              { id: 'all', label: 'All Products' },
+              { id: 'all', label: 'All Status' },
               { id: 'active', label: 'Active' },
               { id: 'inactive', label: 'Inactive' },
               { id: 'low_stock', label: 'Low Stock' },
@@ -163,7 +224,13 @@ export const AdminProducts: React.FC = () => {
       </Card>
 
       {/* Product List Grid / Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {filteredProducts.length === 0 ? (
+        <Card glass className="p-8 text-center space-y-2">
+          <p className="text-slate-500 dark:text-slate-400 font-bold">No products match your filters.</p>
+          <p className="text-xs text-slate-400">Try adjusting your search query, category, or status filter.</p>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredProducts.map((product) => {
           const discountPercent = formatDiscountPercentage(product.originalPrice, product.sellingPrice);
           const isOutOfStock = product.stockQuantity <= 0;
@@ -232,6 +299,23 @@ export const AdminProducts: React.FC = () => {
                       {product.stockQuantity} units
                     </span>
                   </div>
+
+                  {/* Admin Only Actual Cost & Margin Display */}
+                  <div className="flex justify-between items-center pt-1 border-t border-slate-200/60 dark:border-slate-800">
+                    <span className="text-slate-500 font-semibold">Actual Cost:</span>
+                    <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
+                      {product.actualCost && product.actualCost > 0 ? (
+                        <span>
+                          {formatINR(product.actualCost)}
+                          <span className={`ml-1.5 text-[10px] font-black ${product.sellingPrice - product.actualCost >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>
+                            (+{formatINR(product.sellingPrice - product.actualCost)} margin)
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 font-medium italic text-[11px]">Not set</span>
+                      )}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -277,6 +361,7 @@ export const AdminProducts: React.FC = () => {
           );
         })}
       </div>
+      )}
 
       {/* Product Edit / Create Modal */}
       <ProductModal

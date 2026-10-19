@@ -116,15 +116,15 @@ export const CustomerLayout: React.FC = () => {
           {/* Brand Logo */}
           <Link to={ROUTES.CUSTOMER.HOME} className="flex items-center gap-2.5 group">
             <img
-              src="/logo.png"
+              src={settings?.logoUrl || "/logo.png"}
               alt="Diyas N Duas Logo"
-              className="w-10 h-10 rounded-full object-cover shadow-md shadow-amber-500/25 ring-2 ring-amber-400/50 group-hover:scale-105 transition-transform"
+              className="w-10 h-10 rounded-full object-cover shadow-md shadow-brand-500/25 ring-2 ring-gold-400/50 group-hover:scale-105 transition-transform"
             />
             <div>
-              <span className="font-extrabold text-xl tracking-tight bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 dark:from-amber-300 dark:via-amber-400 dark:to-amber-200 bg-clip-text text-transparent block">
-                DIYAS N DUAS
+              <span className="font-bold text-xl tracking-tight bg-gradient-to-r from-maroon-700 via-terracotta-500 to-gold-500 dark:from-gold-300 dark:via-terracotta-400 dark:to-maroon-300 bg-clip-text text-transparent block">
+                Diyas n duas
               </span>
-              <span className="block text-[9px] tracking-widest text-amber-600/80 dark:text-amber-400/80 font-bold uppercase -mt-1">
+              <span className="block text-[10px] tracking-wide text-terracotta-600 dark:text-gold-400 font-semibold -mt-0.5">
                 Terracotta Diyas Store
               </span>
             </div>

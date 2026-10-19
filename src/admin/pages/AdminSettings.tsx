@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { StoreSettings } from '../../types/settings';
 import { settingsService } from '../../services/settings.service';
 import { Card } from '../../components/ui/Card';
@@ -19,18 +19,43 @@ import {
   Info,
   Instagram,
   Truck,
-  BellRing
+  BellRing,
+  Image as ImageIcon,
+  Upload,
+  RotateCcw,
+  Link as LinkIcon
 } from 'lucide-react';
 import { fcmService } from '../../services/fcm.service';
+import { compressImageFile } from '../../utils/imageCompressor';
 
 export const AdminSettings: React.FC = () => {
   const [settings, setSettings] = useState<StoreSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
   const [devicePushActive, setDevicePushActive] = useState<boolean>(() => {
     return typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted';
   });
   const toast = useToast();
+
+  const handleLogoFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    e.target.value = '';
+    setLogoUploading(true);
+    try {
+      const compressedDataUrl = await compressImageFile(file, 512, 512, 0.85);
+      setSettings(prev => prev ? { ...prev, logoUrl: compressedDataUrl } : prev);
+      toast.success('Logo Selected', 'New logo preview loaded. Click "Save Changes" to apply.');
+    } catch (err: any) {
+      toast.error('Upload Error', err.message || 'Could not process image file.');
+    } finally {
+      setLogoUploading(false);
+    }
+  };
 
   const handleToggleDevicePush = async (enable: boolean) => {
     if (enable) {
@@ -90,6 +115,98 @@ export const AdminSettings: React.FC = () => {
       </div>
 
       <form onSubmit={handleSave} className="space-y-6">
+        {/* Store Brand Logo Management Card */}
+        <Card glass className="p-6 space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+            <div className="flex items-center gap-2">
+              <ImageIcon className="w-5 h-5 text-amber-500" />
+              <h3 className="font-bold text-base">Store Brand Logo</h3>
+            </div>
+            <span
+              className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+                settings.logoUrl
+                  ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                  : 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+              }`}
+            >
+              {settings.logoUrl ? '● Custom Logo Active' : '● Default Store Logo'}
+            </span>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+            {/* Live Logo Preview Box */}
+            <div className="flex flex-col items-center gap-2 flex-shrink-0">
+              <div className="w-24 h-24 rounded-2xl overflow-hidden bg-white dark:bg-slate-800 border-2 border-amber-400/60 shadow-lg shadow-amber-500/10 flex items-center justify-center p-1.5">
+                <img
+                  src={settings.logoUrl || '/logo.png'}
+                  alt="Store Logo Preview"
+                  className="w-full h-full object-contain rounded-xl"
+                />
+              </div>
+              <span className="text-[10px] text-slate-400 font-semibold">Live Preview</span>
+            </div>
+
+            {/* Logo Description & Actions */}
+            <div className="space-y-3 flex-1 w-full text-center sm:text-left">
+              <div>
+                <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                  {settings.logoUrl ? 'Custom Brand Logo' : 'Default Store Logo (/logo.png)'}
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Changing your logo here will instantly reflect across the customer storefront (header, mobile navigation) and the admin control panel.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
+                <input
+                  type="file"
+                  ref={logoInputRef}
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  className="hidden"
+                  onChange={handleLogoFileUpload}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => logoInputRef.current?.click()}
+                  isLoading={logoUploading}
+                  className="font-bold inline-flex items-center gap-1.5"
+                  leftIcon={<Upload className="w-3.5 h-3.5 text-amber-500" />}
+                >
+                  <span>Upload Logo Image</span>
+                </Button>
+
+                {settings.logoUrl && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSettings({ ...settings, logoUrl: '' });
+                      toast.info('Logo Reset', 'Reverted to default store logo. Click "Save Changes" to save.');
+                    }}
+                    className="text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-xs font-bold inline-flex items-center gap-1"
+                    leftIcon={<RotateCcw className="w-3 h-3" />}
+                  >
+                    <span>Reset to Default</span>
+                  </Button>
+                )}
+              </div>
+
+              <div className="pt-1">
+                <Input
+                  label="Or Enter Image Web URL (Optional)"
+                  placeholder="https://example.com/logo.png"
+                  value={settings.logoUrl || ''}
+                  onChange={(e) => setSettings({ ...settings, logoUrl: e.target.value })}
+                  leftIcon={<LinkIcon className="w-3.5 h-3.5" />}
+                />
+              </div>
+            </div>
+          </div>
+        </Card>
+
         {/* Operational Status Toggles */}
         <Card glass className="p-6 space-y-4">
           <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">

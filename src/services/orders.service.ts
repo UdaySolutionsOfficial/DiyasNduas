@@ -535,16 +535,17 @@ export const ordersService = {
     // Check if order is being completed / finalized (delivered or cancelled)
     const isCompletedStatus = newStatus === 'delivered' || newStatus === 'cancelled';
 
-    if (isCompletedStatus) {
-      // Archive finalized order into Firestore
-      try {
-        const docRef = doc(db, ORDERS_COLLECTION, targetId);
-        await setDoc(docRef, sanitizedOrder, { merge: true });
-      } catch (e) {
-        console.warn('[OrdersService] Firestore archiving warning:', e);
-      }
+    // 1. Always update Firestore with the authoritative order data so it is never stale
+    try {
+      const docRef = doc(db, ORDERS_COLLECTION, targetId);
+      await setDoc(docRef, sanitizedOrder, { merge: true });
+    } catch (e) {
+      console.warn('[OrdersService] Firestore archiving warning:', e);
+    }
 
-      // Remove from RTDB Live Orders
+    // 2. Synchronize RTDB Live Orders
+    if (isCompletedStatus) {
+      // Remove from RTDB Live Orders once completed or cancelled
       try {
         const liveOrderRef = ref(rtdb, `${RTDB_LIVE_ORDERS_PATH}/${targetId}`);
         await remove(liveOrderRef);
@@ -560,6 +561,10 @@ export const ordersService = {
         console.warn('[OrdersService] RTDB status update warning:', e);
       }
     }
+
+    // Clear RTDB latest order notification if this order was the latest (prevents stale new-order popups)
+    realtimeEventsService.clearLatestOrderIfMatches(existingOrder.orderId)
+      .catch(err => console.warn('[RTDB Clear Latest Order Warning]', err));
 
     // Trigger FCM Web Push Notification to customer's device for all status updates
     try {
@@ -645,6 +650,12 @@ export const ordersService = {
       await deleteDoc(docRef);
     } catch (e) {
       console.warn('[OrdersService] Firestore delete error:', e);
+    }
+
+    // Clear RTDB latest order notification if deleted order was the latest
+    if (existingOrder) {
+      realtimeEventsService.clearLatestOrderIfMatches(existingOrder.orderId)
+        .catch(err => console.warn('[RTDB Clear Latest Order Warning]', err));
     }
 
     // Remove from memory store

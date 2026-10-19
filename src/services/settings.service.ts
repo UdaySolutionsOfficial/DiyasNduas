@@ -6,6 +6,7 @@ const SETTINGS_DOC_PATH = 'settings/store_config';
 
 const DEFAULT_SETTINGS: StoreSettings = {
   storeName: 'Diyas N Duas',
+  logoUrl: '',
   contactPhone: '+91 9177536399',
   whatsappNumber: '+91 9177536399',
   storeEmail: 'udaysolutions.us@gmail.com',

@@ -8,30 +8,81 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Crackers King Blue Palette System (Soft Light Blue -> Sky -> Vibrant -> Royal -> Deep Navy)
+        // Royal Indian Festive Palette System (Maroon, Terracotta, Ivory, Antique Gold)
         brand: {
-          50: '#F0F7FF',   // Soft Light Blue
-          100: '#E0EFFE',  // Light Blue Accent
-          200: '#BAE0FD',  // Sky Blue Tint
-          300: '#7CC5FC',  // Sky Blue
-          400: '#36A7F9',  // Vibrant Sky
-          500: '#0C89EB',  // Core Brand Blue
-          600: '#006BCE',  // Deep Electric Blue
-          700: '#0055A7',  // Royal Blue
-          800: '#044889',  // Deep Royal
-          900: '#0A3B70',  // Deep Navy Blue
-          950: '#061A30',  // Midnight Navy
+          50: '#F7F1E7',   // Luminous Royal Ivory (Exact Client Palette)
+          100: '#F3E9DD',  // Warm Silk Ivory
+          200: '#E6D2BD',  // Antique Gold Tint
+          300: '#D5B58D',  // Warm Muted Brass
+          400: '#C87C52',  // Radiant Terracotta Gold
+          500: '#B9653C',  // Core Handcrafted Terracotta (Exact Client Palette)
+          600: '#9C4828',  // Deep Earthen Terracotta
+          700: '#70232B',  // Royal Festive Maroon (Exact Client Palette)
+          800: '#561A21',  // Deep Imperial Maroon
+          900: '#3E1217',  // Rich Velvet Maroon
+          950: '#280B0F',  // Midnight Royal Obsidian
+        },
+        maroon: {
+          50: '#FDF2F3',
+          100: '#FBE4E7',
+          200: '#F8CBD1',
+          300: '#F0A3AD',
+          400: '#DF6B7A',
+          500: '#922D37',
+          600: '#812730',
+          700: '#70232B',  // Exact Client Maroon
+          800: '#561A21',
+          900: '#3E1217',
+          950: '#280B0F',
+        },
+        terracotta: {
+          50: '#FDF7F3',
+          100: '#FBEEE5',
+          200: '#F7DCBE',
+          300: '#ECC2AB',
+          400: '#D58B62',
+          500: '#B9653C',  // Exact Client Terracotta
+          600: '#A2532E',
+          700: '#844023',
+          800: '#6D351F',
+          900: '#582C1C',
+        },
+        ivory: {
+          50: '#FDFBF8',
+          100: '#F7F1E7',  // Exact Client Ivory
+          200: '#EFE4D2',
+          300: '#E4D4BB',
+          400: '#D5BFA0',
+          500: '#C3A783',
+        },
+        gold: {
+          50: '#FAF7EE',
+          100: '#F4EDD6',
+          200: '#EADEAD',
+          300: '#DDC980',
+          400: '#CAB063',
+          500: '#B89551',  // Exact Client Antique Gold
+          600: '#9E7B3D',
+          700: '#7F5E2F',
+          800: '#684C2B',
+          900: '#573F26',
         },
         surface: {
           light: '#FFFFFF',
-          soft: '#F8FAFC',
-          glass: 'rgba(255, 255, 255, 0.85)',
-          dark: '#0B132B',
-          'dark-elevated': '#1C2541',
-          'dark-glass': 'rgba(11, 19, 43, 0.85)',
+          soft: '#F7F1E7',
+          glass: 'rgba(255, 255, 255, 0.90)',
+          dark: '#160507',
+          'dark-elevated': '#250B0E',
+          'dark-glass': 'rgba(22, 5, 7, 0.90)',
         },
         slate: {
-          950: '#0B132B',
+          50: '#FAF6F0',   // Warm Royal Ivory background (Exact Client Palette warmth)
+          100: '#F4ECE1',  // Soft silk ivory surface
+          200: '#E8DCCB',  // Antique ivory border
+          700: '#46151B',  // Deep wine slate
+          800: '#2C0D12',  // Deep wine maroon
+          900: '#1D0609',  // Midnight velvet maroon
+          950: '#140406',  // Deep royal maroon obsidian
         }
       },
       fontFamily: {
@@ -39,10 +90,12 @@ export default {
       },
       boxShadow: {
         'xs': '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-        'glass': '0 8px 32px 0 rgba(12, 137, 235, 0.08)',
-        'glass-hover': '0 12px 40px 0 rgba(12, 137, 235, 0.15)',
-        'glow-soft': '0 0 20px rgba(54, 167, 249, 0.2)',
-        'glow-brand': '0 0 25px rgba(12, 137, 235, 0.35)',
+        'glass': '0 8px 32px 0 rgba(112, 35, 43, 0.08)',
+        'glass-hover': '0 12px 40px 0 rgba(112, 35, 43, 0.16)',
+        'glow-soft': '0 0 20px rgba(184, 149, 81, 0.25)',
+        'glow-brand': '0 0 25px rgba(185, 101, 60, 0.35)',
+        'glow-gold': '0 0 25px rgba(184, 149, 81, 0.45)',
+        'glow-maroon': '0 0 25px rgba(112, 35, 43, 0.4)',
         'sheet': '0 -10px 40px rgba(0, 0, 0, 0.15)',
       },
       borderRadius: {

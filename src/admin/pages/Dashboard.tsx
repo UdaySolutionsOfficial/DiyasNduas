@@ -49,6 +49,13 @@ export const Dashboard: React.FC = () => {
       }
     };
     loadDashboardData();
+
+    // Live subscription to order changes so Today's Orders and Today's Value stay reactive
+    const unsubscribeOrders = ordersService.subscribeToAllOrders((updatedOrders) => {
+      setOrders(updatedOrders);
+    });
+
+    return () => unsubscribeOrders();
   }, []);
 
   if (loading) {
@@ -62,7 +69,8 @@ export const Dashboard: React.FC = () => {
 
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
-  const todayOrders = orders.filter((o) => o.createdAt >= todayStart.getTime());
+  // Exclude cancelled orders from valid today's orders count and revenue total
+  const todayOrders = orders.filter((o) => o.createdAt >= todayStart.getTime() && o.orderStatus !== 'cancelled');
   const todaySalesValue = todayOrders.reduce((sum, o) => sum + o.total, 0);
 
   return (
@@ -158,15 +166,17 @@ export const Dashboard: React.FC = () => {
           <span className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400">{todayOrders.length}</span>
         </Card>
 
-        <Card glass className="p-4 space-y-2 border-blue-200/60 dark:border-blue-900/60">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Today's Value</span>
-            <div className="p-2 rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400">
-              <TrendingUp className="w-4 h-4" />
+        <Link to={ROUTES.ADMIN.REVENUE} className="group">
+          <Card glass className="p-4 space-y-2 border-blue-200/60 dark:border-blue-900/60 group-hover:border-amber-500/50 transition-all group-hover:scale-102">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider group-hover:text-amber-500 transition-colors">Today's Value</span>
+              <div className="p-2 rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400 group-hover:bg-amber-500 group-hover:text-white transition-colors">
+                <TrendingUp className="w-4 h-4" />
+              </div>
             </div>
-          </div>
-          <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100">{formatINR(todaySalesValue)}</span>
-        </Card>
+            <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100">{formatINR(todaySalesValue)}</span>
+          </Card>
+        </Link>
 
         <Card glass className="p-4 space-y-2 border-rose-200/60 dark:border-rose-900/60 col-span-2 lg:col-span-1">
           <div className="flex items-center justify-between">
@@ -196,7 +206,16 @@ export const Dashboard: React.FC = () => {
                 <div className="space-y-0.5 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-mono font-black text-brand-600 dark:text-brand-400">{order.orderId}</span>
-                    <Badge variant={order.orderStatus === 'pending' ? 'warning' : 'brand'} className="text-[10px] py-0">
+                    <Badge 
+                      variant={
+                        order.orderStatus === 'cancelled'
+                          ? 'danger'
+                          : order.orderStatus === 'pending' || order.orderStatus === 'cancel_requested'
+                          ? 'warning'
+                          : 'brand'
+                      } 
+                      className="text-[10px] py-0"
+                    >
                       {order.orderStatus}
                     </Badge>
                   </div>

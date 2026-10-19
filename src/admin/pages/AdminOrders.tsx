@@ -11,8 +11,9 @@ import { Select } from '../../components/ui/Select';
 import { Loading } from '../../components/ui/Loading';
 import { ConfirmationDialog } from '../../components/ui/ConfirmationDialog';
 import { formatINR, formatDate } from '../../utils/formatters';
-import { Eye, Printer, Trash2 } from 'lucide-react';
+import { Eye, Printer, Trash2, FileSpreadsheet } from 'lucide-react';
 import { useToast } from '../../contexts/ToastContext';
+import { revenueExportService } from '../../services/revenueExport.service';
 
 export const AdminOrders: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -139,6 +140,15 @@ export const AdminOrders: React.FC = () => {
           <h1 className="text-2xl font-black tracking-tight">Order Request Management</h1>
           <p className="text-sm text-slate-500">Review incoming orders, manage statuses, and print receipts.</p>
         </div>
+        <Button
+          onClick={() => revenueExportService.exportOrdersLedger(filteredOrders, statusFilter !== 'all' ? statusFilter : undefined)}
+          variant="secondary"
+          size="sm"
+          className="font-bold flex items-center gap-1.5 self-start sm:self-auto shadow-xs border-slate-300 dark:border-slate-700 hover:border-amber-500 hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+          leftIcon={<FileSpreadsheet className="w-4 h-4 text-emerald-500" />}
+        >
+          <span>Export Excel ({filteredOrders.length})</span>
+        </Button>
       </div>
 
       {/* Search & Filter Controls */}
