@@ -1,5 +1,9 @@
 {
   "rules": {
+    "coupons": {
+      ".read": true,
+      ".write": true
+    },
     "liveOrders": {
       ".read": true,
       ".write": true

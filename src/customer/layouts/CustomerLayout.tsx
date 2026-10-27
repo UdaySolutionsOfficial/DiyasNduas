@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Home,
   Grid,
@@ -20,6 +20,7 @@ import { localStorageUtil } from '../../utils/localStorage';
 import { AnnouncementBar } from '../components/AnnouncementBar';
 import { PWAInstallModal } from '../components/PWAInstallModal';
 import { NotificationPromptModal } from '../components/NotificationPromptModal';
+import { MilestoneOfferModal } from '../components/MilestoneOfferModal';
 import { FestiveBackgroundCanvas } from '../../components/common/FestiveBackgroundCanvas';
 import { env } from '../../config/env';
 import { settingsService } from '../../services/settings.service';
@@ -29,12 +30,20 @@ import { StoreSettings } from '../../types/settings';
 export const CustomerLayout: React.FC = () => {
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
-  const { getCartCount } = useCart();
+  const {
+    cartItems,
+    getCartCount,
+    isSpecialOfferModalOpen,
+    closeSpecialOfferModal,
+    specialOfferConfig,
+    addSpecialOfferToCart,
+  } = useCart();
+  const navigate = useNavigate();
   const { getWishlistCount } = useWishlist();
   const toast = useToast();
 
   const [recentOrderCount, setRecentOrderCount] = useState(0);
-  const [settings, setSettings] = useState<StoreSettings | null>(null);
+  const [settings, setSettings] = useState<StoreSettings>(() => settingsService.getCachedSettings());
 
   // Surface visual in-app banner toast when notifications fire while browsing
   useEffect(() => {
@@ -112,38 +121,38 @@ export const CustomerLayout: React.FC = () => {
 
       {/* Customer Header */}
       <header className="sticky top-0 z-40 bg-white/85 dark:bg-slate-900/85 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 shadow-xs transition-colors">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-2 sm:gap-4">
           {/* Brand Logo */}
-          <Link to={ROUTES.CUSTOMER.HOME} className="flex items-center gap-2.5 group">
+          <Link to={ROUTES.CUSTOMER.HOME} className="flex items-center gap-2 sm:gap-2.5 group flex-shrink-0 min-w-0">
             <img
               src={settings?.logoUrl || "/logo.png"}
-              alt="Diyas N Duas Logo"
-              className="w-10 h-10 rounded-full object-cover shadow-md shadow-brand-500/25 ring-2 ring-gold-400/50 group-hover:scale-105 transition-transform"
+              alt={`${settings?.storeName || 'Diyas N Duas'} Logo`}
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover shadow-md shadow-brand-500/25 ring-2 ring-gold-400/50 group-hover:scale-105 transition-transform flex-shrink-0"
             />
-            <div>
-              <span className="font-bold text-xl tracking-tight bg-gradient-to-r from-maroon-700 via-terracotta-500 to-gold-500 dark:from-gold-300 dark:via-terracotta-400 dark:to-maroon-300 bg-clip-text text-transparent block">
-                Diyas n duas
+            <div className="min-w-0">
+              <span className="font-bold text-base sm:text-lg lg:text-xl tracking-tight bg-gradient-to-r from-maroon-700 via-terracotta-500 to-gold-500 dark:from-gold-300 dark:via-terracotta-400 dark:to-maroon-300 bg-clip-text text-transparent block whitespace-nowrap">
+                {settings?.storeName || 'Diyas N Duas'}
               </span>
-              <span className="block text-[10px] tracking-wide text-terracotta-600 dark:text-gold-400 font-semibold -mt-0.5">
+              <span className="block text-[10px] tracking-wide text-terracotta-600 dark:text-gold-400 font-semibold -mt-0.5 whitespace-nowrap">
                 Terracotta Diyas Store
               </span>
             </div>
           </Link>
 
-          {/* Desktop Navigation Links with Animated Active Background Pill */}
-          <nav className="hidden md:flex items-center gap-2 text-sm font-medium bg-slate-100/70 dark:bg-slate-800/50 p-1.5 rounded-2xl border border-slate-200/60 dark:border-slate-800/60">
+          {/* Desktop & Tablet Navigation Links with Animated Active Background Pill */}
+          <nav className="hidden md:flex items-center gap-1 lg:gap-2 text-xs lg:text-sm font-medium bg-slate-100/70 dark:bg-slate-800/50 p-1 lg:p-1.5 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 flex-shrink-0">
             {navItems.map((item) => {
               const isActive = location.pathname === item.path;
               return (
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-xl transition-all duration-300 ${isActive
+                  className={`relative flex items-center gap-1.5 lg:gap-2 px-2.5 py-1.5 lg:px-3.5 lg:py-1.5 rounded-xl transition-all duration-300 whitespace-nowrap ${isActive
                     ? 'bg-brand-500 text-white font-extrabold shadow-md shadow-brand-500/30 scale-105 z-10'
                     : 'text-slate-600 dark:text-slate-300 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-white/60 dark:hover:bg-slate-800/80'
                     }`}
                 >
-                  <item.icon className="w-4 h-4" />
+                  <item.icon className="w-3.5 h-3.5 lg:w-4 lg:h-4 flex-shrink-0" />
                   <span>{item.label}</span>
                   {Boolean(item.badge && item.badge > 0) && (
                     <span className={`px-1.5 py-0.2 text-[10px] font-black rounded-full shadow-xs ${isActive ? 'bg-white text-brand-600' : 'bg-brand-500 text-white'
@@ -157,20 +166,20 @@ export const CustomerLayout: React.FC = () => {
           </nav>
 
           {/* Header Action Controls */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-2 lg:gap-3 flex-shrink-0">
             <button
               onClick={toggleTheme}
-              className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-brand-500 dark:hover:text-brand-400 transition-colors cursor-pointer"
+              className="p-2 sm:p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-brand-500 dark:hover:text-brand-400 transition-colors cursor-pointer flex-shrink-0"
               aria-label="Toggle Theme Mode"
               title="Toggle Light/Dark Theme"
             >
               {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
             </button>
 
-            {/* Dynamic Store Phone Call Action (Desktop & Mobile) */}
+            {/* Dynamic Store Phone Call Action (Desktop Full / Tablet & Mobile Compact) */}
             <a
               href={`tel:${(settings?.contactPhone || settings?.whatsappNumber || env.store.supportPhone).replace(/[^\d+]/g, '')}`}
-              className="hidden sm:inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-brand-50 text-brand-700 hover:bg-brand-100 dark:bg-brand-950/80 dark:text-brand-300 border border-brand-200 dark:border-brand-800 transition-colors shadow-xs"
+              className="hidden xl:inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-brand-50 text-brand-700 hover:bg-brand-100 dark:bg-brand-950/80 dark:text-brand-300 border border-brand-200 dark:border-brand-800 transition-colors shadow-xs whitespace-nowrap"
               title={`Call Store: ${settings?.contactPhone || settings?.whatsappNumber || env.store.supportPhone}`}
             >
               <PhoneCall className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
@@ -179,7 +188,7 @@ export const CustomerLayout: React.FC = () => {
 
             <a
               href={`tel:${(settings?.contactPhone || settings?.whatsappNumber || env.store.supportPhone).replace(/[^\d+]/g, '')}`}
-              className="sm:hidden p-2.5 rounded-xl bg-brand-50 dark:bg-brand-950/80 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800 transition-colors shadow-xs"
+              className="xl:hidden p-2 sm:p-2.5 rounded-xl bg-brand-50 dark:bg-brand-950/80 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800 transition-colors shadow-xs flex-shrink-0"
               aria-label={`Call Store: ${settings?.contactPhone || settings?.whatsappNumber || env.store.supportPhone}`}
               title={`Call Store: ${settings?.contactPhone || settings?.whatsappNumber || env.store.supportPhone}`}
             >
@@ -240,6 +249,19 @@ export const CustomerLayout: React.FC = () => {
           );
         })}
       </nav>
+
+      {/* Animated Festive Milestone Special Offer Modal */}
+      <MilestoneOfferModal
+        isOpen={isSpecialOfferModalOpen}
+        onClose={closeSpecialOfferModal}
+        config={specialOfferConfig}
+        cartItems={cartItems}
+        onAddOfferProduct={addSpecialOfferToCart}
+        onProceedToCheckout={() => {
+          closeSpecialOfferModal();
+          navigate(ROUTES.CUSTOMER.CHECKOUT);
+        }}
+      />
 
       {/* First-Time PWA App Install Promo Modal */}
       <PWAInstallModal />

@@ -23,6 +23,7 @@ import { AdminBanners } from './admin/pages/AdminBanners';
 import { AdminAnnouncements } from './admin/pages/AdminAnnouncements';
 import { AdminCampaigns } from './admin/pages/AdminCampaigns';
 import { AdminTaxes } from './admin/pages/AdminTaxes';
+import { AdminSpecialOffers } from './admin/pages/AdminSpecialOffers';
 import { AdminSettings } from './admin/pages/AdminSettings';
 import { AdminRevenue } from './admin/pages/AdminRevenue';
 
@@ -71,6 +72,7 @@ export const router = createBrowserRouter([
       { path: 'announcements', element: <AdminAnnouncements /> },
       { path: 'campaigns', element: <AdminCampaigns /> },
       { path: 'taxes', element: <AdminTaxes /> },
+      { path: 'special-offers', element: <AdminSpecialOffers /> },
       { path: 'revenue', element: <AdminRevenue /> },
       { path: 'analytics', element: <AdminRevenue /> },
       { path: 'settings', element: <AdminSettings /> },

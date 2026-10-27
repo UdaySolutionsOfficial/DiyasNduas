@@ -16,7 +16,8 @@ import {
   CheckCircle2, 
   Copy, 
   MessageSquare, 
-  Package
+  Package,
+  Sparkles
 } from 'lucide-react';
 import { ROUTES } from '../../constants/routes';
 import { useDocumentSeo } from '../hooks/useDocumentSeo';
@@ -86,24 +87,50 @@ export const OrderConfirmation: React.FC = () => {
     );
   }
 
+  const isPreOrder = Boolean(
+    order.isPreOrder ||
+    order.orderType === 'pre_order' ||
+    order.orderType === 'mixed' ||
+    order.items?.some((i) => i.isPreOrder)
+  );
+
   return (
     <div className="max-w-2xl mx-auto space-y-6 animate-fade-in pb-12 relative z-10">
       {/* Success Hero Header */}
-      <Card glass className="p-8 text-center space-y-4 rounded-3xl glass-card-3d border-emerald-200/60 dark:border-emerald-900/60 shadow-xl">
-        <div className="mx-auto w-16 h-16 rounded-3xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center shadow-lg shadow-emerald-500/30 animate-bounce">
-          <CheckCircle2 className="w-9 h-9" />
+      <Card glass className={`p-8 text-center space-y-4 rounded-3xl glass-card-3d shadow-xl ${
+        isPreOrder 
+          ? 'border-purple-300/60 dark:border-purple-800/60' 
+          : 'border-emerald-200/60 dark:border-emerald-900/60'
+      }`}>
+        <div className={`mx-auto w-16 h-16 rounded-3xl text-white flex items-center justify-center shadow-lg animate-bounce ${
+          isPreOrder
+            ? 'bg-gradient-to-tr from-purple-600 to-indigo-500 shadow-purple-500/30'
+            : 'bg-gradient-to-tr from-emerald-500 to-teal-400 shadow-emerald-500/30'
+        }`}>
+          {isPreOrder ? <Sparkles className="w-9 h-9" /> : <CheckCircle2 className="w-9 h-9" />}
         </div>
 
         <div className="space-y-1">
-          <Badge variant="success" className="text-xs px-3 py-1 mb-1">
-            Order Request Received
+          <Badge 
+            variant={isPreOrder ? 'neutral' : 'success'} 
+            className={`text-xs px-3 py-1 mb-1 ${
+              isPreOrder 
+                ? 'bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 border-purple-300 dark:border-purple-700' 
+                : ''
+            }`}
+          >
+            {isPreOrder 
+              ? (order.orderType === 'mixed' ? 'Mixed Order (Includes Pre-Order)' : '✨ Pre-Order Request Received') 
+              : 'Order Request Received'}
           </Badge>
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100">
             Thank You, {order.customerInfo.fullName}!
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto font-medium">
-            {settings?.orderConfirmationNote ||
-              'Your diyas order request has been received by Diyas N Duas. Our team will contact you shortly to confirm stock and delivery.'}
+            {isPreOrder
+              ? 'Your pre-order booking request has been successfully registered with Diyas N Duas. Our artisans will handcraft and prepare your items once confirmed!'
+              : (settings?.orderConfirmationNote ||
+                'Your diyas order request has been received by Diyas N Duas. Our team will contact you shortly to confirm stock and delivery.')}
           </p>
         </div>
 
@@ -113,7 +140,9 @@ export const OrderConfirmation: React.FC = () => {
             Unique Order Reference ID
           </span>
           <div className="flex items-center justify-center gap-3">
-            <span className="text-xl sm:text-2xl font-mono font-black text-brand-600 dark:text-brand-400">
+            <span className={`text-xl sm:text-2xl font-mono font-black ${
+              isPreOrder ? 'text-purple-600 dark:text-purple-400' : 'text-brand-600 dark:text-brand-400'
+            }`}>
               {order.orderId}
             </span>
             <button
@@ -161,7 +190,14 @@ export const OrderConfirmation: React.FC = () => {
                   <img src={item.image} alt={item.name} className="w-10 h-10 rounded-xl object-cover bg-slate-100" />
                 )}
                 <div>
-                  <h4 className="font-bold text-slate-900 dark:text-slate-100">{item.name}</h4>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <h4 className="font-bold text-slate-900 dark:text-slate-100">{item.name}</h4>
+                    {item.isPreOrder && (
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-black bg-purple-100 text-purple-700 dark:bg-purple-950/70 dark:text-purple-300 border border-purple-200">
+                        <Sparkles className="w-2.5 h-2.5" /> Pre-Order
+                      </span>
+                    )}
+                  </div>
                   <span className="text-slate-400">Qty: {item.quantity} × {formatINR(item.unitPrice)}</span>
                 </div>
               </div>

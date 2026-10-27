@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { realtimeEventsService, NewOrderNotificationEvent } from '../../services/realtimeEvents.service';
 import { ordersService } from '../../services/orders.service';
+import { fcmService } from '../../services/fcm.service';
 import { Order } from '../../types/order';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
@@ -101,6 +102,21 @@ export const NewOrderPopup: React.FC<NewOrderPopupProps> = ({
 
         setFullOrder(ord);
         setEvent(newEvent);
+
+        // Immediate admin alert & OS push notification
+        const isPreOrderAlert = Boolean(ord.isPreOrder || ord.orderType === 'pre_order' || ord.orderType === 'mixed' || ord.items?.some(i => i.isPreOrder));
+        try {
+          fcmService.displayLocalNotification({
+            title: isPreOrderAlert ? `✨ New Pre-Order Request (#${ord.orderId})` : `🪔 New Order Received (#${ord.orderId})`,
+            body: isPreOrderAlert
+              ? `Customer ${ord.customerInfo.fullName} requested a Pre-Order (${formatINR(ord.total)}) for ${ord.itemCount} items.`
+              : `Customer ${ord.customerInfo.fullName} placed an order of ${formatINR(ord.total)}.`,
+            url: `/admin/orders`,
+            tag: `admin-order-${ord.orderId}`,
+          });
+        } catch (notifErr) {
+          console.warn('[Admin Popup FCM Alert Error]', notifErr);
+        }
       } catch (err) {
         console.warn('[NewOrderPopup] Failed to inspect order status:', err);
       }
@@ -139,16 +155,37 @@ export const NewOrderPopup: React.FC<NewOrderPopupProps> = ({
     setFullOrder(null);
   };
 
+  const isPreOrder = Boolean(
+    fullOrder.isPreOrder ||
+    fullOrder.orderType === 'pre_order' ||
+    fullOrder.orderType === 'mixed' ||
+    fullOrder.items?.some(i => i.isPreOrder)
+  );
+
   return (
     <Modal isOpen={Boolean(event && fullOrder)} onClose={handleDismiss}>
       <div className="space-y-5 animate-scale-in">
         {/* Header Alert Icon */}
-        <div className="flex items-center gap-3 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400">
-          <div className="p-2 rounded-xl bg-amber-500 text-white shadow-md shadow-amber-500/20">
+        <div className={`flex items-center gap-3 p-3 rounded-2xl border ${
+          isPreOrder 
+            ? 'bg-purple-500/10 border-purple-500/30 text-purple-600 dark:text-purple-400' 
+            : 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
+        }`}>
+          <div className={`p-2 rounded-xl text-white shadow-md ${
+            isPreOrder 
+              ? 'bg-purple-600 shadow-purple-600/30' 
+              : 'bg-amber-500 shadow-amber-500/20'
+          }`}>
             <Sparkles className="w-6 h-6 animate-pulse" />
           </div>
           <div>
-            <h3 className="font-black text-lg text-slate-900 dark:text-slate-100">NEW ORDER RECEIVED!</h3>
+            <h3 className="font-black text-lg text-slate-900 dark:text-slate-100">
+              {fullOrder.orderType === 'mixed'
+                ? 'NEW ORDER (INCLUDES PRE-ORDER)!'
+                : isPreOrder
+                ? 'NEW PRE-ORDER RECEIVED!'
+                : 'NEW ORDER RECEIVED!'}
+            </h3>
             <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
               Live customer order request received via Realtime Database.
             </p>
@@ -178,6 +215,15 @@ export const NewOrderPopup: React.FC<NewOrderPopupProps> = ({
             <span className="text-slate-500">Items Ordered:</span>
             <span className="font-bold text-slate-900 dark:text-slate-100">{fullOrder.itemCount} items</span>
           </div>
+
+          {isPreOrder && (
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-slate-500">Classification:</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800">
+                {fullOrder.orderType === 'mixed' ? 'Mixed (Pre-Order + In-Stock)' : 'Pre-Order Request'}
+              </span>
+            </div>
+          )}
 
           <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex justify-between items-baseline font-black text-base">
             <span>Total:</span>

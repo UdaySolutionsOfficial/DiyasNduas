@@ -7,6 +7,8 @@ export interface NewOrderNotificationEvent {
   totalAmount: number;
   customerName: string;
   timestamp: number;
+  isPreOrder?: boolean;
+  orderType?: 'standard' | 'pre_order' | 'mixed';
 }
 
 export const realtimeEventsService = {

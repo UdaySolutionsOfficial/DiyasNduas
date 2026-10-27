@@ -11,7 +11,7 @@ import { SearchInput } from '../../components/ui/SearchInput';
 import { Loading } from '../../components/ui/Loading';
 import { ConfirmationDialog } from '../../components/ui/ConfirmationDialog';
 import { formatINR, formatDiscountPercentage } from '../../utils/formatters';
-import { Plus, Edit2, Power, Trash2, FileSpreadsheet, Layers } from 'lucide-react';
+import { Plus, Edit2, Power, Trash2, FileSpreadsheet, Layers, MessageCircle, Sparkles } from 'lucide-react';
 import { useToast } from '../../contexts/ToastContext';
 import { revenueExportService } from '../../services/revenueExport.service';
 
@@ -58,6 +58,20 @@ export const AdminProducts: React.FC = () => {
     } catch (err) {
       console.error('[Save Product Error]', err);
       toast.error('Save Failed', 'Could not save product.');
+    }
+  };
+
+    const handleTogglePreOrder = async (prod: Product) => {
+    try {
+      const nextValue = !prod.allowPreOrder;
+      await productsService.updateProduct(prod.id, { allowPreOrder: nextValue });
+      toast.success(
+        nextValue ? 'Pre-Orders Enabled' : 'Switched to WhatsApp Inquiries',
+        `"${prod.name}" out-of-stock mode: ${nextValue ? 'Customers can Pre-Order online' : '"I\'m Interested" WhatsApp inquiries'}`
+      );
+    } catch (err) {
+      console.error('[Toggle Pre-Order]', err);
+      toast.error('Update Failed', 'Could not update pre-order settings.');
     }
   };
 
@@ -315,6 +329,63 @@ export const AdminProducts: React.FC = () => {
                         <span className="text-slate-400 font-medium italic text-[11px]">Not set</span>
                       )}
                     </span>
+                  </div>
+                </div>
+
+                {/* Out-of-Stock Mode Switcher: Left[OFF] = WhatsApp Interest <-> Right[ON] = Pre-Orders */}
+                <div className={`p-2.5 rounded-xl border transition-all ${
+                  product.allowPreOrder
+                    ? 'bg-amber-500/10 border-amber-300 dark:border-amber-700/80 dark:bg-amber-950/20'
+                    : 'bg-emerald-50/70 border-emerald-200 dark:border-emerald-800/60 dark:bg-emerald-950/20'
+                }`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 text-xs font-bold">
+                        {product.allowPreOrder ? (
+                          <span className="text-amber-800 dark:text-amber-300 flex items-center gap-1">
+                            <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse flex-shrink-0" />
+                            <span>Pre-Orders: <strong className="font-black text-amber-600 dark:text-amber-400">ENABLED</strong></span>
+                          </span>
+                        ) : (
+                          <span className="text-emerald-800 dark:text-emerald-300 flex items-center gap-1">
+                            <MessageCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+                            <span>Out-of-Stock: <strong className="font-black text-emerald-600 dark:text-emerald-400">WHATSAPP</strong></span>
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight truncate mt-0.5">
+                        {product.allowPreOrder
+                          ? 'When out of stock: Customers can Pre-Book online'
+                          : 'When out of stock: "I\'m Interested" WhatsApp inquiries'}
+                      </p>
+                    </div>
+
+                    {/* Interactive Toggle Switch: Left[OFF] WhatsApp <-> Right[ON] Pre-Orders */}
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={Boolean(product.allowPreOrder)}
+                      onClick={() => handleTogglePreOrder(product)}
+                      className={`relative inline-flex h-7 w-14 flex-shrink-0 cursor-pointer rounded-full p-0.5 transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 shadow-inner select-none ${
+                        product.allowPreOrder
+                          ? 'bg-gradient-to-r from-amber-500 to-amber-600 focus:ring-amber-500'
+                          : 'bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500'
+                      }`}
+                      title={product.allowPreOrder ? 'Click to switch to WhatsApp inquiries when out of stock' : 'Click to allow customer Pre-Orders when out of stock'}
+                    >
+                      <span className="sr-only">Toggle Pre-Orders</span>
+                      <span
+                        className={`pointer-events-none inline-flex h-6 w-6 transform items-center justify-center rounded-full bg-white shadow-md ring-0 transition duration-300 ease-in-out ${
+                          product.allowPreOrder ? 'translate-x-7' : 'translate-x-0'
+                        }`}
+                      >
+                        {product.allowPreOrder ? (
+                          <Sparkles className="h-3.5 w-3.5 text-amber-600 animate-pulse" />
+                        ) : (
+                          <MessageCircle className="h-3.5 w-3.5 text-emerald-600" />
+                        )}
+                      </span>
+                    </button>
                   </div>
                 </div>
               </div>

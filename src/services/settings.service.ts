@@ -3,6 +3,7 @@ import { db } from '../firebase/config';
 import { StoreSettings } from '../types/settings';
 
 const SETTINGS_DOC_PATH = 'settings/store_config';
+const LOCAL_STORAGE_SETTINGS_KEY = 'ck_store_settings_cache';
 
 const DEFAULT_SETTINGS: StoreSettings = {
   storeName: 'Diyas N Duas',
@@ -32,6 +33,30 @@ const DEFAULT_SETTINGS: StoreSettings = {
   updatedAt: Date.now(),
 };
 
+function getLocalSettings(): StoreSettings {
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_SETTINGS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        return { ...DEFAULT_SETTINGS, ...parsed };
+      }
+    }
+  } catch (err) {
+    console.warn('[SettingsService] Read local cache failed:', err);
+  }
+  return DEFAULT_SETTINGS;
+}
+
+function saveLocalSettings(settings: StoreSettings): void {
+  try {
+    localStorage.setItem(LOCAL_STORAGE_SETTINGS_KEY, JSON.stringify(settings));
+    window.dispatchEvent(new CustomEvent('ck_store_settings_updated', { detail: settings }));
+  } catch (err) {
+    console.warn('[SettingsService] Write local cache failed:', err);
+  }
+}
+
 function sanitizeSettingsPayload(payload: Record<string, any>): Record<string, any> {
   const clean: Record<string, any> = {};
   Object.keys(payload).forEach((key) => {
@@ -46,38 +71,60 @@ function sanitizeSettingsPayload(payload: Record<string, any>): Record<string, a
 }
 
 export const settingsService = {
+  /**
+   * Synchronous accessor for instantly available cached store settings (0ms latency, zero flicker)
+   */
+  getCachedSettings(): StoreSettings {
+    return getLocalSettings();
+  },
+
   async getStoreSettings(): Promise<StoreSettings> {
     try {
       const docRef = doc(db, SETTINGS_DOC_PATH);
       const snapshot = await getDoc(docRef);
       if (snapshot.exists()) {
-        return { ...DEFAULT_SETTINGS, ...snapshot.data() } as StoreSettings;
+        const data = { ...DEFAULT_SETTINGS, ...snapshot.data() } as StoreSettings;
+        saveLocalSettings(data);
+        return data;
       }
     } catch (error) {
-      console.warn('[SettingsService] Failed to fetch settings, using defaults:', error);
+      console.warn('[SettingsService] Failed to fetch settings, using cache/defaults:', error);
     }
-    return DEFAULT_SETTINGS;
+    return getLocalSettings();
   },
 
   subscribeToStoreSettings(callback: (settings: StoreSettings) => void): Unsubscribe {
+    // Deliver synchronous cached settings immediately on frame 0
+    callback(getLocalSettings());
+
     const docRef = doc(db, SETTINGS_DOC_PATH);
     return onSnapshot(
       docRef,
       (snapshot) => {
         if (snapshot.exists()) {
-          callback({ ...DEFAULT_SETTINGS, ...snapshot.data() } as StoreSettings);
+          const data = { ...DEFAULT_SETTINGS, ...snapshot.data() } as StoreSettings;
+          saveLocalSettings(data);
+          callback(data);
         } else {
           callback(DEFAULT_SETTINGS);
         }
       },
       (error) => {
-        console.warn('[SettingsService] Snapshot listener error, using defaults:', error);
-        callback(DEFAULT_SETTINGS);
+        console.warn('[SettingsService] Snapshot listener error, using cache/defaults:', error);
+        callback(getLocalSettings());
       }
     );
   },
 
   async updateStoreSettings(updates: Partial<StoreSettings>): Promise<void> {
+    const current = getLocalSettings();
+    const updated = {
+      ...current,
+      ...updates,
+      updatedAt: Date.now(),
+    };
+    saveLocalSettings(updated);
+
     const docRef = doc(db, SETTINGS_DOC_PATH);
     const payload = sanitizeSettingsPayload({
       ...updates,

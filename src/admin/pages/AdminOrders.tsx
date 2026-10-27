@@ -11,7 +11,7 @@ import { Select } from '../../components/ui/Select';
 import { Loading } from '../../components/ui/Loading';
 import { ConfirmationDialog } from '../../components/ui/ConfirmationDialog';
 import { formatINR, formatDate } from '../../utils/formatters';
-import { Eye, Printer, Trash2, FileSpreadsheet } from 'lucide-react';
+import { Eye, Printer, Trash2, FileSpreadsheet, Sparkles } from 'lucide-react';
 import { useToast } from '../../contexts/ToastContext';
 import { revenueExportService } from '../../services/revenueExport.service';
 
@@ -87,6 +87,7 @@ export const AdminOrders: React.FC = () => {
   const statusOptions = [
     { label: 'All Statuses', value: 'all' },
     { label: 'Pending Store Confirmation', value: 'pending' },
+    { label: 'Pre-Order Accepted', value: 'pre_order_confirmed' },
     { label: 'Confirmed', value: 'confirmed' },
     { label: 'Packaging / Processing', value: 'processing' },
     { label: 'Ready for Transport', value: 'ready' },
@@ -112,6 +113,12 @@ export const AdminOrders: React.FC = () => {
     switch (status) {
       case 'pending':
         return <Badge variant="warning">Pending</Badge>;
+      case 'pre_order_confirmed':
+        return (
+          <Badge className="bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 border-purple-300 dark:border-purple-700 font-bold">
+            ✨ Pre-Order Accepted
+          </Badge>
+        );
       case 'confirmed':
         return <Badge variant="brand">Confirmed</Badge>;
       case 'processing':
@@ -173,105 +180,124 @@ export const AdminOrders: React.FC = () => {
         {filteredOrders.length === 0 ? (
           <p className="text-center text-slate-500 py-10 text-sm">No matching order requests found.</p>
         ) : (
-          filteredOrders.map((order) => (
-            <Card
-              key={order.id}
-              glass
-              className={`p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-2xl border ${
-                order.orderStatus === 'cancel_requested' ? 'border-amber-500/50 bg-amber-500/5' : ''
-              }`}
-            >
-              {/* Order Info & Customer Details */}
-              <div className="space-y-1 min-w-0 flex-1">
-                <div className="flex items-center gap-2.5">
-                  <span className="font-mono font-black text-brand-600 dark:text-brand-400 text-base">
-                    {order.orderId}
-                  </span>
-                  {renderStatusBadge(order.orderStatus)}
-                  <span className="text-xs text-slate-400 font-medium">{formatDate(order.createdAt)}</span>
+          filteredOrders.map((order) => {
+            const isPreOrder = Boolean(
+              order.isPreOrder ||
+              order.orderType === 'pre_order' ||
+              order.orderType === 'mixed' ||
+              order.items?.some((i) => i.isPreOrder)
+            );
+
+            return (
+              <Card
+                key={order.id}
+                glass
+                className={`p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-2xl border ${
+                  order.orderStatus === 'cancel_requested'
+                    ? 'border-amber-500/50 bg-amber-500/5'
+                    : isPreOrder
+                    ? 'border-purple-300/40 dark:border-purple-800/40'
+                    : ''
+                }`}
+              >
+                {/* Order Info & Customer Details */}
+                <div className="space-y-1 min-w-0 flex-1">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span className="font-mono font-black text-brand-600 dark:text-brand-400 text-base">
+                      {order.orderId}
+                    </span>
+                    {renderStatusBadge(order.orderStatus)}
+                    {isPreOrder && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-100 text-purple-700 dark:bg-purple-950/80 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                        <Sparkles className="w-2.5 h-2.5" />
+                        {order.orderType === 'mixed' ? 'Mixed Order' : 'Pre-Order'}
+                      </span>
+                    )}
+                    <span className="text-xs text-slate-400 font-medium">{formatDate(order.createdAt)}</span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-700 dark:text-slate-300 pt-1">
+                    <span className="font-bold text-slate-900 dark:text-slate-100">{order.customerInfo.fullName}</span>
+                    <span className="text-slate-500">📞 {order.customerInfo.phone}</span>
+                    <span className="text-slate-500">📍 {order.customerInfo.address}</span>
+                  </div>
+
+                  <div className="text-xs text-slate-400 font-medium">
+                    {order.itemCount} items ordered
+                  </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-700 dark:text-slate-300 pt-1">
-                  <span className="font-bold text-slate-900 dark:text-slate-100">{order.customerInfo.fullName}</span>
-                  <span className="text-slate-500">📞 {order.customerInfo.phone}</span>
-                  <span className="text-slate-500">📍 {order.customerInfo.address}</span>
+                {/* Total & Actions */}
+                <div className="flex items-center justify-between md:justify-end gap-4 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100 dark:border-slate-800">
+                  <div className="text-left md:text-right">
+                    <span className="text-xs text-slate-400 block font-semibold">Total</span>
+                    <span className="text-xl font-black text-slate-900 dark:text-slate-100">
+                      {formatINR(order.total)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        setSelectedOrder(order);
+                      }}
+                      className="font-bold text-xs"
+                    >
+                      <Eye className="w-3.5 h-3.5 mr-1" />
+                      <span>Details</span>
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setReceiptOrder(order)}
+                      className="px-2.5"
+                      title="Print Receipt"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setOrderToDelete(order);
+                        setShowDeleteDialog(true);
+                      }}
+                      className="px-2.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                      title="Delete Order"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
                 </div>
-
-                <div className="text-xs text-slate-400 font-medium">
-                  {order.itemCount} items ordered
-                </div>
-              </div>
-
-              {/* Total & Actions */}
-              <div className="flex items-center justify-between md:justify-end gap-4 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100 dark:border-slate-800">
-                <div className="text-left md:text-right">
-                  <span className="text-xs text-slate-400 block font-semibold">Total</span>
-                  <span className="text-xl font-black text-slate-900 dark:text-slate-100">
-                    {formatINR(order.total)}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => {
-                      setSelectedOrder(order);
-                    }}
-                    className="font-bold text-xs"
-                  >
-                    <Eye className="w-3.5 h-3.5 mr-1" />
-                    <span>Details</span>
-                  </Button>
-
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setReceiptOrder(order)}
-                    className="px-2.5"
-                    title="Print Receipt"
-                  >
-                    <Printer className="w-3.5 h-3.5" />
-                  </Button>
-
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      setOrderToDelete(order);
-                      setShowDeleteDialog(true);
-                    }}
-                    className="px-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
-                    title="Delete Order Record"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          ))
+              </Card>
+            );
+          })
         )}
       </div>
 
+      {/* Details & Status Update Modal */}
       <OrderDetailsModal
         order={selectedOrder}
         onClose={() => setSelectedOrder(null)}
         onUpdateStatus={handleUpdateStatus}
-        onPrintReceipt={(ord) => setReceiptOrder(ord)}
+        onPrintReceipt={(order) => setReceiptOrder(order)}
       />
 
-      <ReceiptModal
-        order={receiptOrder}
-        onClose={() => setReceiptOrder(null)}
-      />
+      {/* Printable Receipt Modal */}
+      <ReceiptModal order={receiptOrder} onClose={() => setReceiptOrder(null)} />
 
+      {/* Permanent Order Delete Confirmation */}
       <ConfirmationDialog
         isOpen={showDeleteDialog}
         onClose={() => setShowDeleteDialog(false)}
         onConfirm={handleDeleteConfirm}
-        title="Delete Order Record"
-        message={`Are you sure you want to delete order #${orderToDelete?.orderId}? This action will permanently remove this order record.`}
-        confirmText="Delete Order Record"
+        title="Delete Order Record Permanently"
+        message={`Are you sure you want to permanently delete order #${orderToDelete?.orderId}? This cannot be undone.`}
+        confirmText="Delete Order"
         isDestructive
       />
     </div>

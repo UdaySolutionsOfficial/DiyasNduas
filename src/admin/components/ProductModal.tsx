@@ -38,6 +38,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [urlInput, setUrlInput] = useState('');
   const [isActive, setIsActive] = useState(true);
   const [isFeatured, setIsFeatured] = useState(false);
+  const [allowPreOrder, setAllowPreOrder] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -57,6 +58,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setImages(product.images && product.images.length > 0 ? product.images : []);
       setIsActive(product.isActive);
       setIsFeatured(product.isFeatured);
+      setAllowPreOrder(Boolean(product.allowPreOrder));
     } else {
       setName('');
       setDescription('');
@@ -70,6 +72,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setImages([]);
       setIsActive(true);
       setIsFeatured(false);
+      setAllowPreOrder(false);
     }
     setUrlInput('');
     setErrors({});
@@ -172,6 +175,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         badge: badge.trim() || '',
         isActive,
         isFeatured,
+        allowPreOrder,
       };
 
       await onSave(draft, product?.id);
@@ -418,9 +422,10 @@ export const ProductModal: React.FC<ProductModalProps> = ({
           ))}
         </div>
 
-        <div className="pt-2 flex items-center justify-between border-t border-slate-200 dark:border-slate-800">
+        <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-200 dark:border-slate-800">
           <Toggle label="Active Store Item" checked={isActive} onChange={setIsActive} />
-          <Toggle label="Featured Homepage Item" checked={isFeatured} onChange={setIsFeatured} />
+          <Toggle label="Featured Item" checked={isFeatured} onChange={setIsFeatured} />
+          <Toggle label="Allow Pre-Orders when Out of Stock" checked={allowPreOrder} onChange={setAllowPreOrder} />
         </div>
 
         <div className="pt-3 flex justify-end gap-3 border-t border-slate-200 dark:border-slate-800">

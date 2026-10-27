@@ -13,6 +13,7 @@ import {
   Store,
   Megaphone,
   Receipt,
+  Gift,
   BellRing,
   Download,
   LineChart
@@ -34,7 +35,7 @@ export const AdminLayout: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
   const { logout } = useAuth();
 
-  const [settings, setSettings] = useState<StoreSettings | null>(null);
+  const [settings, setSettings] = useState<StoreSettings>(() => settingsService.getCachedSettings());
   const [activePopupOrder, setActivePopupOrder] = useState<Order | null>(null);
   const [activeReceiptOrder, setActiveReceiptOrder] = useState<Order | null>(null);
   const [adminPushEnabled, setAdminPushEnabled] = useState<boolean>(() => {
@@ -151,6 +152,7 @@ export const AdminLayout: React.FC = () => {
     { label: 'Orders', path: ROUTES.ADMIN.ORDERS, icon: ShoppingBag },
     { label: 'Push Campaigns', path: ROUTES.ADMIN.CAMPAIGNS, icon: BellRing },
     { label: 'Taxes & Coupons', path: ROUTES.ADMIN.TAXES, icon: Receipt },
+    { label: 'Special Offers', path: ROUTES.ADMIN.SPECIAL_OFFERS, icon: Gift },
     { label: 'Banners', path: ROUTES.ADMIN.BANNERS, icon: ImageIcon },
     { label: 'Notices', path: ROUTES.ADMIN.ANNOUNCEMENTS, icon: Megaphone },
     { label: 'Categories', path: ROUTES.ADMIN.CATEGORIES, icon: FolderTree },
@@ -175,12 +177,12 @@ export const AdminLayout: React.FC = () => {
           <Link to={ROUTES.ADMIN.DASHBOARD} className="flex items-center gap-3 px-2 group">
             <img
               src={settings?.logoUrl || "/admin-icon.png"}
-              alt="Diyas n duas Admin Logo"
+              alt="Diyas N Duas Admin Logo"
               className="w-11 h-11 rounded-2xl object-cover shadow-lg shadow-amber-500/20 ring-2 ring-amber-500/40 group-hover:scale-105 transition-transform"
             />
             <div>
               <span className="font-semibold text-base text-slate-800 dark:text-slate-100 block tracking-normal">
-                Diyas n duas
+                {settings?.storeName || 'Diyas N Duas'}
               </span>
               <span className="block text-[11px] text-slate-400 font-normal -mt-0.5 tracking-normal">
                 Store Control Center
@@ -277,8 +279,8 @@ export const AdminLayout: React.FC = () => {
       {/* Mobile Admin Header Navigation */}
       <div className="no-print md:hidden bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 py-3 sticky top-0 z-30 flex items-center justify-between">
         <Link to={ROUTES.ADMIN.DASHBOARD} className="flex items-center gap-2">
-          <img src={settings?.logoUrl || "/admin-icon.png"} alt="Diyas n duas" className="w-7 h-7 rounded-lg object-cover ring-1 ring-gold-400" />
-          <span className="font-semibold text-sm text-slate-800 dark:text-slate-100 tracking-normal">Diyas n duas</span>
+          <img src={settings?.logoUrl || "/admin-icon.png"} alt="Diyas N Duas" className="w-7 h-7 rounded-lg object-cover ring-1 ring-gold-400" />
+          <span className="font-semibold text-sm text-slate-800 dark:text-slate-100 tracking-normal">{settings?.storeName || 'Diyas N Duas'}</span>
         </Link>
 
         <div className="flex items-center gap-2">

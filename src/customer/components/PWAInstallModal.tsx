@@ -17,28 +17,55 @@ export const PWAInstallModal: React.FC = () => {
       return;
     }
 
+    let isScheduled = false;
+
+    const scheduleOpenModal = (delayMs = 1200) => {
+      if (isScheduled) return;
+      isScheduled = true;
+      setTimeout(() => {
+        const dismissed = localStorage.getItem(PWA_PROMPT_STORAGE_KEY);
+        if (!dismissed) {
+          setIsOpen(true);
+        }
+      }, delayMs);
+    };
+
+    // Check if the welcome animation is still active in this session
+    const isWelcomePending = typeof window !== 'undefined' && !sessionStorage.getItem('ck_welcome_seen');
+
+    const handleWelcomeCompleted = () => {
+      // Natural 1.2s delay after the welcome video completes
+      scheduleOpenModal(1200);
+    };
+
+    if (isWelcomePending) {
+      window.addEventListener('welcome-animation-completed', handleWelcomeCompleted, { once: true });
+    }
+
     // Capture native Chrome beforeinstallprompt event
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      // Delay prompt slightly for a smooth first-time experience
-      setTimeout(() => {
-        setIsOpen(true);
-      }, 1200);
+      // Only schedule immediately if welcome animation is NOT currently playing
+      const currentWelcomePending = typeof window !== 'undefined' && !sessionStorage.getItem('ck_welcome_seen');
+      if (!currentWelcomePending) {
+        scheduleOpenModal(1200);
+      }
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
-    // Fallback: If beforeinstallprompt hasn't fired after 2.5s and prompt hasn't been dismissed, show promo
+    // Fallback: If beforeinstallprompt hasn't fired after 2.5s and prompt hasn't been dismissed
     const fallbackTimer = setTimeout(() => {
-      const dismissed = localStorage.getItem(PWA_PROMPT_STORAGE_KEY);
-      if (!dismissed) {
-        setIsOpen(true);
+      const currentWelcomePending = typeof window !== 'undefined' && !sessionStorage.getItem('ck_welcome_seen');
+      if (!currentWelcomePending) {
+        scheduleOpenModal(500);
       }
     }, 2500);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('welcome-animation-completed', handleWelcomeCompleted);
       clearTimeout(fallbackTimer);
     };
   }, []);
@@ -97,7 +124,7 @@ export const PWAInstallModal: React.FC = () => {
         {/* Modal Title & Text Content */}
         <div className="space-y-1.5 px-2">
           <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
-            INSTALL THE DIYAS N DUAS APP!
+            Install the Diyas N Duas App!
           </h3>
           <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
             Get instant live order tracking, exclusive early-bird festive discounts, and 1-tap checkout right from your home screen!
@@ -107,23 +134,23 @@ export const PWAInstallModal: React.FC = () => {
         {/* Action Controls */}
         <div className="pt-2 flex flex-col sm:flex-row gap-2.5">
           <Button
-            onClick={handleInstallApp}
-            isLoading={isInstalling}
+            onClick={handleDismiss}
             variant="primary"
             size="lg"
-            className="flex-1 font-black btn-shine-sweep bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 border-none shadow-lg shadow-amber-400/30 rounded-2xl inline-flex flex-row items-center justify-center gap-2"
-            leftIcon={<Download className="w-5 h-5 text-slate-950" />}
+            className="flex-1 font-black btn-shine-sweep bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-500 hover:to-amber-700 text-slate-950 border-none shadow-lg shadow-amber-400/30 rounded-2xl inline-flex flex-row items-center justify-center gap-2 py-3 cursor-pointer"
           >
-            <span>INSTALL APP NOW</span>
+            <span>Continue on Web</span>
           </Button>
 
           <Button
-            onClick={handleDismiss}
-            variant="ghost"
-            size="md"
-            className="text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+            onClick={handleInstallApp}
+            isLoading={isInstalling}
+            variant="secondary"
+            size="lg"
+            className="flex-1 font-bold text-xs rounded-2xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors inline-flex flex-row items-center justify-center gap-2 py-3 cursor-pointer"
+            leftIcon={<Download className="w-4 h-4 text-slate-500 dark:text-slate-400" />}
           >
-            <span>Continue on Web</span>
+            <span>Install App</span>
           </Button>
         </div>
       </div>

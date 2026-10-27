@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock, Mail } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { adminAuthService } from '../../services/adminAuth.service';
+import { settingsService } from '../../services/settings.service';
 import { ROUTES } from '../../constants/routes';
 import { useToast } from '../../contexts/ToastContext';
 
@@ -13,6 +14,18 @@ export const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const toast = useToast();
+
+  const cached = settingsService.getCachedSettings();
+  const [logoUrl, setLogoUrl] = useState(cached.logoUrl || '/logo.png');
+  const [storeName, setStoreName] = useState(cached.storeName || 'Diyas N Duas');
+
+  useEffect(() => {
+    const unsub = settingsService.subscribeToStoreSettings((s) => {
+      if (s.logoUrl) setLogoUrl(s.logoUrl);
+      if (s.storeName) setStoreName(s.storeName);
+    });
+    return () => unsub();
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,11 +52,11 @@ export const Login: React.FC = () => {
       <Card glass className="max-w-md w-full p-8 shadow-2xl space-y-6">
         <div className="text-center space-y-2">
           <img
-            src="/logo.png"
-            alt="Diyas N Duas Logo"
+            src={logoUrl || '/logo.png'}
+            alt={`${storeName} Logo`}
             className="w-16 h-16 rounded-full mx-auto object-cover shadow-lg shadow-amber-500/30 ring-2 ring-amber-400/60"
           />
-          <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100">DIYAS N DUAS</h1>
+          <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100">{storeName}</h1>
           <p className="text-xs font-semibold text-brand-600 dark:text-brand-400 uppercase tracking-widest">Admin Portal Login</p>
         </div>
 

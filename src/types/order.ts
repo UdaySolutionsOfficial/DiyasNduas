@@ -1,6 +1,7 @@
 export type OrderStatus = 
   | 'pending' 
   | 'confirmed' 
+  | 'pre_order_confirmed' 
   | 'processing' 
   | 'ready' 
   | 'delivered' 
@@ -25,6 +26,9 @@ export interface OrderItemSnapshot {
   quantity: number;
   image?: string;
   subtotal: number;
+  isPreOrder?: boolean;
+  isSpecialOffer?: boolean;
+  specialOfferPrice?: number;
 }
 
 export interface OrderStatusHistoryItem {
@@ -41,6 +45,11 @@ export interface Order {
   items: OrderItemSnapshot[];
   itemCount: number;
   subtotal: number;
+  isPreOrder?: boolean;
+  isSpecialOffer?: boolean;
+  specialOfferPrice?: number;
+  orderType?: 'standard' | 'pre_order' | 'mixed';
+  hasPreOrderItems?: boolean;
   discountAmount: number;
   couponCode?: string;
   couponDiscount?: number;
@@ -63,7 +72,11 @@ export type OrderCreateRequest = {
   items: Array<{
     productId: string;
     quantity: number;
+    isPreOrder?: boolean;
+    isSpecialOffer?: boolean;
+    specialOfferPrice?: number;
   }>;
+  orderType?: 'standard' | 'pre_order' | 'mixed';
   notes?: string;
   couponCode?: string;
   fcmToken?: string;

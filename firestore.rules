@@ -61,6 +61,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Promo Discount Coupons: Public read (for customer checkout validation), Admin write
+    match /coupons/{couponId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // Order Notifications collection: Public read & write
     match /order_notifications/{orderId} {
       allow read, write: if true;

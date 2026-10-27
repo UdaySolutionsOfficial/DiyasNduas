@@ -18,6 +18,7 @@ export interface Product {
   badge?: string; // e.g. "Bestseller", "New", "Sparkler Special"
   isActive: boolean;
   isFeatured: boolean;
+  allowPreOrder?: boolean; // When stockQuantity <= 0: true = allow customer pre-orders; false/undefined = WhatsApp "I'm Interested" inquiries
   createdAt: number; // UTC timestamp
   updatedAt: number; // UTC timestamp
 }

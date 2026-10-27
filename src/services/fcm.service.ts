@@ -385,6 +385,10 @@ export const fcmService = {
         title: `🪔 Order Request Received (#${orderId})`,
         body: 'Your order request has been received by Diyas N Duas and is waiting for store confirmation.',
       },
+      pre_order_confirmed: {
+        title: `✨ Pre-Order Accepted (#${orderId})`,
+        body: 'Your pre-order request has been accepted by Diyas N Duas! Artisan crafting has been scheduled.',
+      },
       confirmed: {
         title: `✅ Order Confirmed (#${orderId})`,
         body: 'Your order has been verified and confirmed by our store! Handcrafted packaging will begin shortly.',

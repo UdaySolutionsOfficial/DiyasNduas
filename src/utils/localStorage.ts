@@ -4,6 +4,9 @@ export interface CartItem {
   product: Product;
   quantity: number;
   addedAt: number;
+  isPreOrder?: boolean;
+  isSpecialOffer?: boolean;
+  specialOfferPrice?: number;
 }
 
 export interface RecentOrderReference {

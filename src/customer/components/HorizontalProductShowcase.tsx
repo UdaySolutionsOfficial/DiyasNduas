@@ -6,6 +6,8 @@ import { formatINR, formatDiscountPercentage } from '../../utils/formatters';
 import { Sparkles, ShoppingBag, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useCart } from '../../contexts/CartContext';
 import { useToast } from '../../contexts/ToastContext';
+import { PreBookButton } from './PreBookButton';
+import { InterestedButton } from './InterestedButton';
 
 interface HorizontalProductShowcaseProps {
   products: Product[];
@@ -195,7 +197,9 @@ export const HorizontalProductShowcase: React.FC<HorizontalProductShowcaseProps>
 
   const handleAddToCart = (e: React.MouseEvent, product: Product) => {
     e.stopPropagation();
-    addToCart(product, 1);
+    const isOutOfStock = product.stockQuantity <= 0;
+    addToCart(product, 1, isOutOfStock);
+    return;
     toast.success('Added to Cart!', `"${product.name}" added to your shopping cart.`);
   };
 
@@ -394,26 +398,45 @@ export const HorizontalProductShowcase: React.FC<HorizontalProductShowcaseProps>
                     </h3>
                   </div>
 
-                  <div className="flex items-center justify-between pt-1">
-                    <div>
-                      <span className="text-[10px] sm:text-[11px] text-slate-400 line-through mr-1 font-medium">
-                        {formatINR(product.originalPrice)}
-                      </span>
-                      <span className="text-base sm:text-lg font-black text-brand-600 dark:text-brand-400">
+                  <div className="flex items-end justify-between gap-1.5 pt-1 min-w-0">
+                    <div className="flex flex-col min-w-0">
+                      {product.originalPrice > product.sellingPrice && (
+                        <span className="text-[10px] sm:text-[11px] text-slate-400 line-through font-medium leading-none truncate">
+                          {formatINR(product.originalPrice)}
+                        </span>
+                      )}
+                      <span className="text-sm sm:text-base font-black text-brand-600 dark:text-brand-400 leading-tight">
                         {formatINR(product.sellingPrice)}
                       </span>
                     </div>
 
-                    <Button
-                      size="sm"
-                      variant="primary"
-                      className="font-black text-xs btn-shine-sweep rounded-xl shadow-md cursor-pointer px-3 py-1.5"
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onClick={(e) => handleAddToCart(e, product)}
-                    >
-                      <ShoppingBag className="w-3.5 h-3.5 mr-1" />
-                      <span>Add</span>
-                    </Button>
+                    {product.stockQuantity <= 0 ? (
+                      product.allowPreOrder ? (
+                        <PreBookButton
+                          onClick={(e) => handleAddToCart(e, product)}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          className="text-[10px] sm:text-xs py-1 px-2.5 sm:px-3 flex-shrink-0"
+                        />
+                      ) : (
+                        <InterestedButton
+                          product={product}
+                          label="Interested"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          className="text-[10px] sm:text-xs py-1 px-2.5 sm:px-3 flex-shrink-0"
+                        />
+                      )
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        className="font-black text-[11px] sm:text-xs rounded-xl shadow-xs cursor-pointer px-2.5 py-1 sm:px-3 sm:py-1.5 whitespace-nowrap transition-all btn-shine-sweep flex-shrink-0"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => handleAddToCart(e, product)}
+                      >
+                        <ShoppingBag className="w-3.5 h-3.5 mr-1" />
+                        <span>Add</span>
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>

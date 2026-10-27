@@ -3,7 +3,7 @@ import { Category } from '../../types/category';
 import { Product } from '../../types/product';
 import { categoriesService } from '../../services/categories.service';
 import { Pill } from '../../components/ui/Pill';
-import { Sparkles, SlidersHorizontal, X, ArrowUpDown } from 'lucide-react';
+import { Sparkles, SlidersHorizontal, X, ArrowUpDown, ChevronDown, ChevronUp } from 'lucide-react';
 import { FlipkartFilterDrawer, FilterValues, SortOption } from './FlipkartFilterDrawer';
 import { formatINR } from '../../utils/formatters';
 
@@ -29,6 +29,18 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isMobileExpanded, setIsMobileExpanded] = useState(false);
+
+  // Compute product count per category
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    products.forEach((p) => {
+      if (p.categoryId) {
+        counts[p.categoryId] = (counts[p.categoryId] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [products]);
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -160,55 +172,31 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
   }
 
   return (
-    <div className="space-y-2">
-      {/* Categories Row Header */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">
-          Categories
-        </h3>
-
-        {selectedCategoryId && (
-          <button
-            onClick={() => onSelectCategory(null)}
-            className="text-xs font-extrabold text-brand-600 dark:text-brand-400 hover:underline"
-          >
-            Show All
-          </button>
-        )}
-      </div>
-
-      {/* Categories Track on Left + Flipkart Filter Button in the Marked Area on Right */}
-      <div className="flex items-center justify-between gap-3">
-        {/* Horizontal Scroll Track for Categories */}
-        <div className="flex-1 flex items-center gap-2 overflow-x-auto pb-1.5 pt-1 scrollbar-none touch-callout-none no-scrollbar min-w-0">
-          <Pill
-            active={selectedCategoryId === null}
-            onClick={() => onSelectCategory(null)}
-            icon={<Sparkles className="w-3.5 h-3.5" />}
-            className="flex-shrink-0 font-extrabold shadow-sm"
-          >
-            All Collections
-          </Pill>
-
-          {categories.map((cat) => (
-            <Pill
-              key={cat.id}
-              active={selectedCategoryId === cat.id}
-              onClick={() => onSelectCategory(cat.id)}
-              className="flex-shrink-0 font-bold transition-all"
+    <div className="space-y-2.5">
+      {/* Categories Row Header with Filters Button */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">
+            Categories
+          </h3>
+          {selectedCategoryId && (
+            <button
+              type="button"
+              onClick={() => onSelectCategory(null)}
+              className="text-xs font-extrabold text-brand-600 dark:text-brand-400 hover:underline inline-flex items-center gap-1 cursor-pointer"
             >
-              {cat.name}
-            </Pill>
-          ))}
+              <span>Show All</span>
+            </button>
+          )}
         </div>
 
-        {/* Flipkart Style Filter Trigger Button (Directly in the Marked Spot - Icon only on mobile, text on desktop) */}
+        {/* Filters Trigger Button */}
         {showAdvancedFilter && (
           <div className="flex items-center gap-2 flex-shrink-0">
             <button
               type="button"
               onClick={() => setIsDrawerOpen(true)}
-              className={`relative inline-flex items-center justify-center gap-2 p-2 sm:px-3.5 sm:py-1.5 rounded-full text-xs font-black transition-all border shadow-xs active:scale-95 cursor-pointer ${
+              className={`relative inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black transition-all border shadow-xs active:scale-95 cursor-pointer ${
                 activeFilterCount > 0
                   ? 'bg-gradient-to-r from-brand-600 to-amber-500 text-white border-brand-500 shadow-brand-500/20'
                   : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-brand-500/50 hover:bg-slate-50 dark:hover:bg-slate-800/80'
@@ -216,23 +204,108 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
               aria-label="Open Price & Category Filters"
               title="Filter by Price & Category"
             >
-              <SlidersHorizontal className="w-4 h-4 sm:w-3.5 sm:h-3.5 flex-shrink-0" />
-              <span className="hidden sm:inline">Price & Filters</span>
+              <SlidersHorizontal className="w-3.5 h-3.5 flex-shrink-0" />
+              <span>Price & Filters</span>
               {activeFilterCount > 0 && (
-                <>
-                  {/* Desktop badge inline */}
-                  <span className="hidden sm:flex w-4 h-4 rounded-full bg-white text-brand-600 text-[10px] font-black items-center justify-center">
-                    {activeFilterCount}
-                  </span>
-                  {/* Mobile floating notification badge */}
-                  <span className="sm:hidden absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center shadow-xs border-2 border-white dark:border-slate-900">
-                    {activeFilterCount}
-                  </span>
-                </>
+                <span className="w-4 h-4 rounded-full bg-white text-brand-600 text-[10px] font-black flex items-center justify-center">
+                  {activeFilterCount}
+                </span>
               )}
             </button>
           </div>
         )}
+      </div>
+
+      {/* MOBILE SCREEN: Categories listed down vertically without any horizontal scrolling */}
+      <div className="sm:hidden space-y-1.5 animate-fade-in">
+        <div className="grid grid-cols-2 gap-1.5">
+          {/* All Collections - Prominent Top Card */}
+          <button
+            type="button"
+            onClick={() => onSelectCategory(null)}
+            className={`col-span-2 flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-extrabold transition-all border shadow-xs cursor-pointer ${
+              selectedCategoryId === null
+                ? 'bg-gradient-to-r from-maroon-700 via-brand-600 to-terracotta-600 text-white border-maroon-800 shadow-maroon-900/25 scale-[1.01]'
+                : 'bg-white/90 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200 border-slate-200/80 dark:border-slate-700/80 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Sparkles className={`w-3.5 h-3.5 ${selectedCategoryId === null ? 'text-amber-300' : 'text-amber-500'}`} />
+              <span>All Collections</span>
+            </div>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
+              selectedCategoryId === null
+                ? 'bg-white/20 text-white'
+                : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+            }`}>
+              {products.length}
+            </span>
+          </button>
+
+          {/* Dynamic Categories (showing top 4 or all if expanded, so it is never overwhelming) */}
+          {(isMobileExpanded ? categories : categories.slice(0, 4)).map((cat) => {
+            const isSelected = selectedCategoryId === cat.id;
+            const count = categoryCounts[cat.id] || 0;
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => onSelectCategory(cat.id)}
+                className={`flex items-center justify-between px-3 py-2 rounded-xl text-[11px] font-bold transition-all border shadow-xs text-left cursor-pointer min-h-[40px] ${
+                  isSelected
+                    ? 'bg-gradient-to-r from-maroon-700 to-terracotta-600 text-white border-maroon-800 shadow-md shadow-maroon-900/20 scale-[1.02] z-10'
+                    : 'bg-white/90 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200 border-slate-200/80 dark:border-slate-700/80 hover:border-brand-500/40 hover:bg-slate-50 dark:hover:bg-slate-800'
+                }`}
+              >
+                <span className="truncate pr-1">{cat.name}</span>
+                {count > 0 && (
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black flex-shrink-0 ${
+                    isSelected
+                      ? 'bg-white/20 text-white'
+                      : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                  }`}>
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Interactive Expand / Collapse Toggle if > 4 categories (Keeps mobile clean & not overwhelming) */}
+        {categories.length > 4 && (
+          <button
+            type="button"
+            onClick={() => setIsMobileExpanded(!isMobileExpanded)}
+            className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[11px] font-bold text-brand-600 dark:text-brand-400 hover:text-brand-700 transition-colors cursor-pointer"
+          >
+            <span>{isMobileExpanded ? 'Show fewer categories' : `Show all ${categories.length} categories`}</span>
+            {isMobileExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+        )}
+      </div>
+
+      {/* DESKTOP VIEW: Clean flex wrap of categories (No horizontal scrolling on wide screens either) */}
+      <div className="hidden sm:flex flex-wrap items-center gap-2">
+        <Pill
+          active={selectedCategoryId === null}
+          onClick={() => onSelectCategory(null)}
+          icon={<Sparkles className="w-3.5 h-3.5" />}
+          className="font-extrabold shadow-sm"
+        >
+          All Collections ({products.length})
+        </Pill>
+
+        {categories.map((cat) => (
+          <Pill
+            key={cat.id}
+            active={selectedCategoryId === cat.id}
+            onClick={() => onSelectCategory(cat.id)}
+            className="font-bold transition-all"
+          >
+            {cat.name} {categoryCounts[cat.id] ? `(${categoryCounts[cat.id]})` : ''}
+          </Pill>
+        ))}
       </div>
 
       {/* Active Filter Chips / Pills (Instant One-Click Dismissal) */}

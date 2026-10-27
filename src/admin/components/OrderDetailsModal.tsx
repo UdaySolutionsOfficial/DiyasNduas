@@ -5,9 +5,21 @@ import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
 import { ConfirmationDialog } from '../../components/ui/ConfirmationDialog';
 import { formatINR, formatDate } from '../../utils/formatters';
-import { Printer, MessageSquare, Phone, AlertTriangle } from 'lucide-react';
+import { 
+  Printer, 
+  MessageSquare, 
+  Phone, 
+  AlertTriangle, 
+  Sparkles, 
+  Check, 
+  CheckCircle2, 
+  PackageCheck, 
+  Truck, 
+  XCircle, 
+  Clock 
+} from 'lucide-react';
 import { useToast } from '../../contexts/ToastContext';
-import { env } from '../../config/env';
+import { openWhatsAppStatusMessageLink } from '../../utils/whatsapp';
 
 export interface OrderDetailsModalProps {
   order: Order | null;
@@ -35,8 +47,16 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
 
   if (!order) return null;
 
+  const isPreOrder = Boolean(
+    order.isPreOrder ||
+    order.orderType === 'pre_order' ||
+    order.orderType === 'mixed' ||
+    order.items?.some((i) => i.isPreOrder)
+  );
+
   const statusOptions = [
     { label: 'Pending Store Confirmation', value: 'pending' },
+    { label: '✨ Pre-Order Accepted', value: 'pre_order_confirmed' },
     { label: 'Confirmed', value: 'confirmed' },
     { label: 'Packaging / Processing', value: 'processing' },
     { label: 'Ready for Transport', value: 'ready' },
@@ -55,8 +75,11 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
 
     try {
       setUpdating(true);
-      await onUpdateStatus(order.id, newStatus, `Status updated to ${newStatus} by admin`);
-      toast.success('Status Updated', `Order #${order.orderId} status changed to ${newStatus}.`);
+      const note = newStatus === 'pre_order_confirmed'
+        ? 'Pre-order request accepted by store admin. Crafting initiated.'
+        : `Status updated to ${newStatus} by admin`;
+
+      await onUpdateStatus(order.id, newStatus, note);
     } catch (err) {
       console.error('[OrderDetailsModal]', err);
       setSelectedStatus(order.orderStatus);
@@ -69,8 +92,14 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
   const handleConfirmCancelOrder = async () => {
     try {
       setUpdating(true);
-      await onUpdateStatus(order.id, 'cancelled', 'Order cancellation approved by store admin (stock restored)');
-      toast.info('Order Cancelled', `Order #${order.orderId} cancelled & stock restored.`);
+      await onUpdateStatus(
+        order.id,
+        'cancelled',
+        order.isPreOrder
+          ? 'Pre-order cancelled by store admin.'
+          : 'Order cancellation approved by store admin (stock restored)'
+      );
+      toast.info('Order Cancelled', `Order #${order.orderId} cancelled.`);
       setShowCancelDialog(false);
     } catch (err) {
       console.error('[Cancel Order Error]', err);
@@ -82,8 +111,9 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
   const handleRejectCancelRequest = async () => {
     try {
       setUpdating(true);
-      await onUpdateStatus(order.id, 'confirmed', 'Customer cancellation request was rejected by store admin.');
-      toast.info('Request Rejected', `Cancellation request rejected. Order #${order.orderId} status set to Confirmed.`);
+      const resumeStatus: OrderStatus = isPreOrder ? 'pre_order_confirmed' : 'confirmed';
+      await onUpdateStatus(order.id, resumeStatus, 'Customer cancellation request was rejected by store admin.');
+      toast.info('Request Rejected', `Cancellation request rejected. Order #${order.orderId} status set to ${resumeStatus}.`);
     } catch (err) {
       console.error('[Reject Cancel Error]', err);
     } finally {
@@ -91,29 +121,78 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
     }
   };
 
-  // WhatsApp Customer Confirmation Message Deep Link
-  const handleConfirmAndMessageCustomer = async () => {
+  // Dynamic WhatsApp button configuration corresponding to the selected order status
+  const getStatusButtonConfig = (status: OrderStatus) => {
+    switch (status) {
+      case 'pending':
+        return {
+          label: 'Send Order Received Message',
+          icon: Clock,
+          colorClass: 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20',
+        };
+      case 'pre_order_confirmed':
+        return {
+          label: 'Send Pre-Order Accepted Message',
+          icon: Sparkles,
+          colorClass: 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-purple-600/20',
+        };
+      case 'confirmed':
+        return {
+          label: 'Send Order Confirmed Message',
+          icon: CheckCircle2,
+          colorClass: 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20',
+        };
+      case 'processing':
+        return {
+          label: 'Send Packaging Update Message',
+          icon: PackageCheck,
+          colorClass: 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/20',
+        };
+      case 'ready':
+        return {
+          label: 'Send Ready for Transport Message',
+          icon: Truck,
+          colorClass: 'bg-teal-600 hover:bg-teal-700 text-white shadow-teal-600/20',
+        };
+      case 'delivered':
+        return {
+          label: 'Send Order Delivered Message',
+          icon: Check,
+          colorClass: 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20',
+        };
+      case 'cancel_requested':
+        return {
+          label: 'Send Cancellation Review Message',
+          icon: AlertTriangle,
+          colorClass: 'bg-amber-600 hover:bg-amber-700 text-white shadow-amber-600/20',
+        };
+      case 'cancelled':
+        return {
+          label: 'Send Order Cancelled Notice',
+          icon: XCircle,
+          colorClass: 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-600/20',
+        };
+      default:
+        return {
+          label: 'Send WhatsApp Status Update',
+          icon: MessageSquare,
+          colorClass: 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20',
+        };
+    }
+  };
+
+  const buttonConfig = getStatusButtonConfig(selectedStatus);
+  const StatusButtonIcon = buttonConfig.icon;
+
+  // Sends the pre-filled professional WhatsApp notification for the currently selected status
+  const handleSendStatusWhatsAppMessage = async () => {
     try {
-      await handleStatusChange('confirmed');
-      const phone = order.customerInfo.phone.replace(/[^0-9]/g, '');
-      const formattedPhone = phone.length === 10 ? `91${phone}` : phone;
-
-      const message = `Hello ${order.customerInfo.fullName},
-
-Your order request has been CONFIRMED by ${env.store.name}!
-
-*Order Reference:* ${order.orderId}
-*Total Bill:* ${formatINR(order.total)}
-*Status:* Confirmed
-
-We are currently preparing your transport parcel. We will contact you for payment & delivery updates.
-
-Thank you!`;
-
-      const url = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
-      window.open(url, '_blank', 'noopener,noreferrer');
+      if (order.orderStatus !== selectedStatus && selectedStatus !== 'cancelled') {
+        await handleStatusChange(selectedStatus);
+      }
+      openWhatsAppStatusMessageLink({ ...order, orderStatus: selectedStatus }, selectedStatus);
     } catch (err) {
-      console.warn('[WhatsApp Notice]', err);
+      console.warn('[WhatsApp Status Send Error]', err);
     }
   };
 
@@ -139,7 +218,7 @@ Thank you!`;
                   isLoading={updating}
                   className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs border-none"
                 >
-                  Approve Cancellation (Restore Stock)
+                  Approve Cancellation
                 </Button>
                 <Button
                   size="sm"
@@ -154,11 +233,36 @@ Thank you!`;
             </div>
           )}
 
+          {/* Pre-Order Tag Notice */}
+          {isPreOrder && (
+            <div className="p-3.5 rounded-2xl bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800/60 flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300">
+                <Sparkles className="w-4 h-4 animate-pulse" />
+              </div>
+              <div className="text-xs">
+                <span className="font-extrabold text-purple-900 dark:text-purple-200 block">
+                  {order.orderType === 'mixed' ? 'Mixed Order (In-Stock + Pre-Order)' : 'Customer Pre-Order Booking'}
+                </span>
+                <span className="text-purple-700/80 dark:text-purple-300/80">
+                  This order contains out-of-stock item(s) booked in advance. Confirming moves status to "Pre-Order Accepted".
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Top Status & Date Header */}
           <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div>
               <span className="text-xs font-bold text-slate-400 block uppercase">Order Reference</span>
-              <span className="font-mono font-black text-xl text-brand-600 dark:text-brand-400">{order.orderId}</span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-mono font-black text-xl text-brand-600 dark:text-brand-400">{order.orderId}</span>
+                {isPreOrder && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-100 text-purple-700 dark:bg-purple-950/80 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                    <Sparkles className="w-2.5 h-2.5" />
+                    {order.orderType === 'mixed' ? 'Mixed' : 'Pre-Order'}
+                  </span>
+                )}
+              </div>
               <span className="text-xs text-slate-400 block mt-0.5">{formatDate(order.createdAt)}</span>
             </div>
 
@@ -212,7 +316,18 @@ Thank you!`;
                       <img src={item.image} alt={item.name} className="w-10 h-10 rounded-lg object-cover bg-slate-200" />
                     )}
                     <div>
-                      <h5 className="font-bold text-slate-900 dark:text-slate-100">{item.name}</h5>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h5 className="font-bold text-slate-900 dark:text-slate-100">{item.name}</h5>
+                        {item.isSpecialOffer ? (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-black bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-300">
+                            <Sparkles className="w-2.5 h-2.5" /> Special Milestone Offer
+                          </span>
+                        ) : item.isPreOrder ? (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-black bg-purple-100 text-purple-700 dark:bg-purple-950/70 dark:text-purple-300 border border-purple-200">
+                            <Sparkles className="w-2.5 h-2.5" /> Pre-Order
+                          </span>
+                        ) : null}
+                      </div>
                       <span className="text-slate-400">Qty: {item.quantity} × {formatINR(item.unitPrice)}</span>
                     </div>
                   </div>
@@ -253,17 +368,17 @@ Thank you!`;
             </div>
           </div>
 
-          {/* Direct Actions */}
+          {/* Direct Actions: Dynamic Status WhatsApp Message Button & Receipt Print */}
           <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row gap-3">
             <Button
               variant="primary"
               size="md"
-              onClick={handleConfirmAndMessageCustomer}
+              onClick={handleSendStatusWhatsAppMessage}
               isLoading={updating}
-              className="flex-1 font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20 border-none"
+              className={`flex-1 font-bold ${buttonConfig.colorClass} shadow-md border-none`}
             >
-              <MessageSquare className="w-4 h-4 mr-2" />
-              <span>Confirm & Message Customer</span>
+              <StatusButtonIcon className="w-4 h-4 mr-2 flex-shrink-0" />
+              <span>{buttonConfig.label}</span>
             </Button>
 
             <Button
@@ -272,7 +387,7 @@ Thank you!`;
               onClick={() => onPrintReceipt(order)}
               className="font-bold"
             >
-              <Printer className="w-4 h-4 mr-2" />
+              <Printer className="w-4 h-4 mr-2 flex-shrink-0" />
               <span>Print Receipt</span>
             </Button>
           </div>
@@ -283,9 +398,13 @@ Thank you!`;
         isOpen={showCancelDialog}
         onClose={() => setShowCancelDialog(false)}
         onConfirm={handleConfirmCancelOrder}
-        title="Cancel Order & Restore Stock"
-        message={`Are you sure you want to cancel order #${order.orderId}? This will automatically restore the ordered item quantities back into product stock.`}
-        confirmText="Cancel Order & Restore Stock"
+        title="Cancel Order"
+        message={`Are you sure you want to cancel order #${order.orderId}? ${
+          order.isPreOrder
+            ? 'Pre-ordered items will be marked cancelled without altering stock count.'
+            : 'This will automatically restore the ordered item quantities back into product stock.'
+        }`}
+        confirmText="Cancel Order"
         isDestructive
       />
     </>

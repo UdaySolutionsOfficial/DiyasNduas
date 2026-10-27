@@ -34,7 +34,7 @@ export const Home: React.FC = () => {
 
   // 2. Data State
   const [products, setProducts] = useState<Product[]>([]);
-  const [settings, setSettings] = useState<StoreSettings | null>(null);
+  const [settings, setSettings] = useState<StoreSettings>(() => settingsService.getCachedSettings());
   const [loading, setLoading] = useState(true);
 
   // 3. Filter & Search State
@@ -46,6 +46,14 @@ export const Home: React.FC = () => {
     const unsubscribeProducts = productsService.subscribeToProducts((prodsData) => {
       setProducts(prodsData);
       setLoading(false);
+      if (prodsData && prodsData.length > 0) {
+        prodsData.slice(0, 8).forEach((p) => {
+          if (p.images && p.images[0]) {
+            const img = new Image();
+            img.src = p.images[0];
+          }
+        });
+      }
     }, true);
 
     const unsubscribeSettings = settingsService.subscribeToStoreSettings((settingsData) => {

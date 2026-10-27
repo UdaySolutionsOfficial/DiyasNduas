@@ -19,7 +19,8 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { 
-  ShoppingBag, 
+  ShoppingBag,
+  Gift, 
   Minus, 
   Plus, 
   Trash2, 
@@ -52,7 +53,11 @@ export const Checkout: React.FC = () => {
     clearCart, 
     getCartSubtotal, 
     getOriginalTotal, 
-    getSavingsTotal 
+    getSavingsTotal,
+    specialOfferConfig,
+    isMilestoneOfferEligible,
+    hasClaimedSpecialOffer,
+    openSpecialOfferModal,
   } = useCart();
   const toast = useToast();
   const navigate = useNavigate();
@@ -88,6 +93,17 @@ export const Checkout: React.FC = () => {
   const [couponMessage, setCouponMessage] = useState<{ text: string; isError: boolean } | null>(null);
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
   const [notificationsActive, setNotificationsActive] = useState(true);
+
+  // Auto-open special milestone offer if eligible upon reaching checkout
+  useEffect(() => {
+    if (isMilestoneOfferEligible && !hasClaimedSpecialOffer) {
+      const sessionKey = `ck_checkout_milestone_shown_${specialOfferConfig.minCartThreshold}`;
+      if (!sessionStorage.getItem(sessionKey)) {
+        sessionStorage.setItem(sessionKey, 'true');
+        openSpecialOfferModal();
+      }
+    }
+  }, [isMilestoneOfferEligible, hasClaimedSpecialOffer, specialOfferConfig.minCartThreshold, openSpecialOfferModal]);
   const handleToggleNotification = useCallback((enabled: boolean) => {
     setNotificationsActive(enabled);
   }, []);
@@ -253,7 +269,7 @@ export const Checkout: React.FC = () => {
 
     // Pre-validate stock availability for all cart items before submitting
     const clientStockIssues: StockIssueItem[] = cartItems
-      .filter((item) => item.product.stockQuantity !== undefined && item.quantity > item.product.stockQuantity)
+      .filter((item) => !item.isPreOrder && item.product.stockQuantity !== undefined && item.product.stockQuantity > 0 && item.quantity > item.product.stockQuantity)
       .map((item) => ({
         product: item.product,
         requestedQuantity: item.quantity,
@@ -269,6 +285,10 @@ export const Checkout: React.FC = () => {
     try {
       setIsSubmitting(true);
 
+      const hasPreOrder = cartItems.some(i => i.isPreOrder || (i.product.stockQuantity !== undefined && i.product.stockQuantity <= 0));
+      const isAllPreOrder = cartItems.every(i => i.isPreOrder || (i.product.stockQuantity !== undefined && i.product.stockQuantity <= 0));
+      const calculatedOrderType: 'standard' | 'pre_order' | 'mixed' = isAllPreOrder ? 'pre_order' : hasPreOrder ? 'mixed' : 'standard';
+
       const orderRequest = {
         customerInfo: {
           ...customerInfo,
@@ -279,7 +299,11 @@ export const Checkout: React.FC = () => {
         items: cartItems.map((item) => ({
           productId: item.product.id,
           quantity: item.quantity,
+          isPreOrder: Boolean(item.isPreOrder || (item.product.stockQuantity !== undefined && item.product.stockQuantity <= 0)),
+          isSpecialOffer: Boolean(item.isSpecialOffer),
+          specialOfferPrice: item.isSpecialOffer ? item.specialOfferPrice : undefined,
         })),
+        orderType: calculatedOrderType,
         notes: customerInfo.notes?.trim(),
         couponCode: appliedCoupon ? appliedCoupon.code : undefined,
         fcmToken: notificationsActive ? (fcmService.getLocalToken() || undefined) : undefined,
@@ -299,8 +323,8 @@ export const Checkout: React.FC = () => {
         fcmService.linkOrderToDeviceToken(createdOrder.orderId);
         fcmService.notifyOrderStatusUpdate(createdOrder.orderId, 'pending');
         fcmService.displayLocalNotification({
-          title: `🪔 Order Placed (#${createdOrder.orderId})`,
-          body: 'Your festive order has been placed with Diyas N Duas!',
+          title: createdOrder.isPreOrder ? `✨ Pre-Order Placed (#${createdOrder.orderId})` : `🪔 Order Placed (#${createdOrder.orderId})`,
+          body: createdOrder.isPreOrder ? 'Your festive pre-order request has been placed with Diyas N Duas!' : 'Your festive order has been placed with Diyas N Duas!',
           url: `/track-order?id=${createdOrder.orderId}`,
           tag: `order-${createdOrder.orderId}-pending`,
         });
@@ -500,6 +524,57 @@ export const Checkout: React.FC = () => {
             disabled={isSubmitting || isOrderingDisabled}
           />
 
+          {/* Intelligent Pre-Order / Mixed Order Guidance Banner */}
+          {cartItems.some(i => i.isPreOrder || (i.product.stockQuantity !== undefined && i.product.stockQuantity <= 0)) && (
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-500/10 via-indigo-500/10 to-purple-500/10 border border-purple-500/30 space-y-1">
+              <div className="flex items-center gap-2 font-bold text-xs text-purple-900 dark:text-purple-200">
+                <Sparkles className="w-4 h-4 text-purple-600 animate-pulse" />
+                <span>
+                  {cartItems.every(i => i.isPreOrder || (i.product.stockQuantity !== undefined && i.product.stockQuantity <= 0))
+                    ? 'Pure Pre-Order Request'
+                    : 'Mixed Order (In-Stock + Pre-Order)'}
+                </span>
+              </div>
+              <p className="text-[11px] text-purple-800 dark:text-purple-300 leading-relaxed">
+                {cartItems.every(i => i.isPreOrder || (i.product.stockQuantity !== undefined && i.product.stockQuantity <= 0))
+                  ? 'All items in your order are handcrafted upon request. Our store will confirm dispatch timing after receiving your order.'
+                  : 'Your order contains both immediately available items and pre-order items. In-stock items will be allocated to your order, and pre-orders crafted with care.'}
+              </p>
+            </div>
+          )}
+
+          
+          {/* Milestone Unlocked Celebratory Banner */}
+          {isMilestoneOfferEligible && (
+            <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-orange-500/15 to-amber-500/15 border-2 border-amber-400 dark:border-amber-600 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md animate-fade-in">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center flex-shrink-0 shadow-sm animate-bounce">
+                  <Gift className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-sm text-amber-950 dark:text-amber-200">
+                    🎉 Special Cart Milestone Unlocked! (Order ₹{specialOfferConfig.minCartThreshold}+ reached)
+                  </h4>
+                  <p className="text-xs text-amber-800 dark:text-amber-300">
+                    {hasClaimedSpecialOffer
+                      ? 'Milestone clearance deal applied to your order! Tap to view or add more.'
+                      : 'You qualify for exclusive clearance deals at subsidized prices! Claim before confirming order.'}
+                  </p>
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={openSpecialOfferModal}
+                className="w-full sm:w-auto !py-2 !px-4 !text-xs !font-black bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-xs whitespace-nowrap"
+              >
+                <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                {hasClaimedSpecialOffer ? 'View Offers' : 'Claim Your Deals'} ({specialOfferConfig.products?.length || 0})
+              </Button>
+            </div>
+          )}
+
           {/* Items Review */}
           <Card glass className="p-6 space-y-4">
             <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
@@ -512,9 +587,12 @@ export const Checkout: React.FC = () => {
             </div>
 
             <div className="space-y-3">
-              {cartItems.map(({ product, quantity }) => {
+              {cartItems.map((item) => {
+                const { product, quantity, isPreOrder } = item;
+                const isItemPreOrder = Boolean(isPreOrder || (product.stockQuantity !== undefined && product.stockQuantity <= 0));
                 const discountPercent = formatDiscountPercentage(product.originalPrice, product.sellingPrice);
-                const itemSubtotal = product.sellingPrice * quantity;
+                const unitPrice = item.isSpecialOffer && item.specialOfferPrice !== undefined ? item.specialOfferPrice : product.sellingPrice;
+                const itemSubtotal = unitPrice * quantity;
 
                 return (
                   <div
@@ -529,9 +607,21 @@ export const Checkout: React.FC = () => {
                         className="w-12 h-12 rounded-xl object-cover bg-slate-200 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 flex-shrink-0"
                       />
                       <div className="min-w-0 flex-1">
-                        <h4 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-slate-100 truncate">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h4 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-slate-100 truncate">
                           {product.name}
                         </h4>
+                          {isItemPreOrder && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-black bg-purple-100 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800">
+                              <Sparkles className="w-2.5 h-2.5" /> Pre-Order
+                            </span>
+                          )}
+                          {item.isSpecialOffer && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-black bg-gradient-to-r from-amber-100 to-orange-100 dark:from-amber-950/70 dark:to-orange-950/70 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                              <Sparkles className="w-2.5 h-2.5 text-amber-500" /> Milestone Deal
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-baseline gap-1.5 text-xs text-slate-500 mt-0.5">
                           <span className="font-semibold text-slate-900 dark:text-slate-100">
                             {formatINR(product.sellingPrice)}
@@ -541,16 +631,23 @@ export const Checkout: React.FC = () => {
                           )}
                         </div>
 
-                        {/* Red warning line when quantity exceeds stock */}
-                        {product.stockQuantity !== undefined && quantity > product.stockQuantity && (
+                        {/* Pre-Order or Stock Notice */}
+                        {isItemPreOrder ? (
+                          <div className="flex items-center gap-1.5 mt-1 text-[11px] font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 px-2 py-0.5 rounded-md">
+                            <Sparkles className="w-3.5 h-3.5 flex-shrink-0 text-purple-500 animate-pulse" />
+                            <span>Pre-Order Item (Crafted upon request)</span>
+                          </div>
+                        ) : (product.stockQuantity !== undefined && quantity > product.stockQuantity) ? (
                           <div className="flex items-center gap-1.5 mt-1 text-[11px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 px-2 py-0.5 rounded-md animate-pulse">
                             <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
                             <span>Only {product.stockQuantity} left in stock. Please adjust quantity.</span>
                           </div>
-                        )}
+                        ) : null}
+
+                          
 
                         {/* Max available stock reached notice */}
-                        {product.stockQuantity !== undefined && quantity === product.stockQuantity && product.stockQuantity <= 5 && (
+                        {!isItemPreOrder && product.stockQuantity !== undefined && product.stockQuantity > 0 && quantity === product.stockQuantity && product.stockQuantity <= 5 && (
                           <p className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1 mt-0.5">
                             <span>Only {product.stockQuantity} available in stock</span>
                           </p>
@@ -575,7 +672,7 @@ export const Checkout: React.FC = () => {
                           type="button"
                           disabled={isSubmitting || isOrderingDisabled}
                           onClick={() => {
-                            if (product.stockQuantity !== undefined && quantity >= product.stockQuantity) {
+                            if (!isItemPreOrder && product.stockQuantity !== undefined && quantity >= product.stockQuantity) {
                               toast.warning(
                                 'Limited Stock Available',
                                 `Only ${product.stockQuantity} piece${product.stockQuantity === 1 ? '' : 's'} available in stock for "${product.name}".`
@@ -585,7 +682,7 @@ export const Checkout: React.FC = () => {
                             updateQuantity(product.id, quantity + 1);
                           }}
                           className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
-                            product.stockQuantity !== undefined && quantity >= product.stockQuantity
+                            !isItemPreOrder && product.stockQuantity !== undefined && quantity >= product.stockQuantity
                               ? 'text-slate-300 dark:text-slate-600 cursor-not-allowed'
                               : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700'
                           }`}

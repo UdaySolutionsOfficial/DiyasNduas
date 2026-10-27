@@ -5,11 +5,13 @@ import { Modal } from '../../components/ui/Modal';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { formatINR, formatDiscountPercentage } from '../../utils/formatters';
-import { ShoppingBag, Zap, Sparkles, ImageOff, ShieldCheck, Truck, Heart, Minus, Plus } from 'lucide-react';
+import { ShoppingBag, Zap, Sparkles, ImageOff, ShieldCheck, Truck, Heart, Minus, Plus, MessageCircle } from 'lucide-react';
 import { useCart } from '../../contexts/CartContext';
 import { useWishlist } from '../../contexts/WishlistContext';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '../../constants/routes';
+import { PreBookButton } from './PreBookButton';
+import { InterestedButton } from './InterestedButton';
 
 export interface ProductDetailsViewProps {
   product: Product | null;
@@ -35,12 +37,18 @@ export const ProductDetailsView: React.FC<ProductDetailsViewProps> = ({ product,
   const currentImg = images[selectedImgIndex] || null;
 
   const handleAddToCart = () => {
-    addToCart(product, quantity);
+    addToCart(product, quantity, isOutOfStock);
     onClose();
   };
 
   const handleOrderNow = () => {
-    addToCart(product, quantity);
+    addToCart(product, quantity, false);
+    onClose();
+    navigate(ROUTES.CUSTOMER.CHECKOUT);
+  };
+
+  const handlePreBookNow = () => {
+    addToCart(product, quantity, true);
     onClose();
     navigate(ROUTES.CUSTOMER.CHECKOUT);
   };
@@ -155,7 +163,17 @@ export const ProductDetailsView: React.FC<ProductDetailsViewProps> = ({ product,
 
             <div>
               {isOutOfStock ? (
-                <Badge variant="danger">Out of Stock</Badge>
+                product.allowPreOrder ? (
+                  <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-300 dark:border-amber-700 flex items-center gap-1 font-bold">
+                    <Sparkles className="w-3 h-3 text-amber-500 animate-pulse" />
+                    <span>Pre-Order Available</span>
+                  </Badge>
+                ) : (
+                  <Badge variant="neutral" className="flex items-center gap-1 font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700">
+                    <MessageCircle className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                    <span>Out of Stock (Inquire on WhatsApp)</span>
+                  </Badge>
+                )
               ) : isLimitedStock ? (
                 <Badge variant="warning" className="flex items-center gap-1">
                   <Sparkles className="w-3 h-3" />
@@ -238,27 +256,51 @@ export const ProductDetailsView: React.FC<ProductDetailsViewProps> = ({ product,
         </div>
 
         {/* Clean Inline Action Buttons at Bottom */}
-        <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex gap-3 pb-2">
-          <Button
-            variant="secondary"
-            size="lg"
-            disabled={isOutOfStock}
-            onClick={handleAddToCart}
-            className="flex-1 font-bold rounded-2xl border-slate-300 dark:border-slate-700 inline-flex flex-row items-center justify-center gap-2"
-            leftIcon={<ShoppingBag className="w-4 h-4 text-brand-500" />}
-          >
-            <span>ADD TO CART</span>
-          </Button>
-          <Button
-            variant="primary"
-            size="lg"
-            disabled={isOutOfStock}
-            onClick={handleOrderNow}
-            className="flex-1 font-black btn-shine-sweep bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 border-none shadow-lg shadow-amber-400/25 rounded-2xl inline-flex flex-row items-center justify-center gap-2"
-            leftIcon={<Zap className="w-4 h-4" />}
-          >
-            <span>ORDER NOW</span>
-          </Button>
+        <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center gap-2 sm:gap-3 pb-1 min-w-0">
+          {isOutOfStock && !product.allowPreOrder ? (
+            <>
+              <div className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold text-[11px] sm:text-xs flex items-center justify-center border border-slate-200 dark:border-slate-700 flex-shrink-0 select-none">
+                <span>Out of Stock</span>
+              </div>
+
+              <InterestedButton
+                product={product}
+                label="I'm Interested"
+                className="flex-1 min-w-0 py-2 sm:py-2.5 px-3 sm:px-4 text-xs sm:text-sm font-bold rounded-xl shadow-xs"
+              />
+            </>
+          ) : (
+            <>
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={handleAddToCart}
+                className="flex-1 min-w-0 font-bold rounded-xl text-xs sm:text-sm py-2 sm:py-2.5"
+                leftIcon={<ShoppingBag className="w-4 h-4 text-brand-500" />}
+              >
+                <span>{isOutOfStock ? 'Pre-Order' : 'Add to Cart'}</span>
+              </Button>
+
+              {isOutOfStock ? (
+                <PreBookButton
+                  onClick={handlePreBookNow}
+                  label="Pre-Book Now"
+                  className="flex-1 min-w-0 py-2 sm:py-2.5 px-3 text-xs sm:text-sm font-black rounded-xl"
+                />
+              ) : (
+                <Button
+                  variant="primary"
+                  size="md"
+                  disabled={isOutOfStock}
+                  onClick={handleOrderNow}
+                  className="flex-1 min-w-0 font-black btn-shine-sweep bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 border-none shadow-sm rounded-xl py-2 sm:py-2.5 text-xs sm:text-sm"
+                  leftIcon={<Zap className="w-4 h-4" />}
+                >
+                  <span>Order Now</span>
+                </Button>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>

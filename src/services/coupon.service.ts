@@ -8,10 +8,12 @@ import {
   onSnapshot, 
   Unsubscribe 
 } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import { ref, set, get, remove, onValue } from 'firebase/database';
+import { db, rtdb } from '../firebase/config';
 import { Coupon, CouponValidationResult } from '../types/coupon';
 
 const COUPONS_COLLECTION = 'coupons';
+const RTDB_COUPONS_PATH = 'coupons';
 const LOCAL_STORAGE_COUPONS_KEY = 'ck_coupons_cache';
 
 const DEFAULT_COUPONS: Coupon[] = [
@@ -25,8 +27,8 @@ const DEFAULT_COUPONS: Coupon[] = [
     maxDiscount: 250,
     isActive: true,
     expiresAt: null,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
+    createdAt: Date.now() - 100000,
+    updatedAt: Date.now() - 100000,
   },
   {
     id: 'FLAT100',
@@ -37,8 +39,8 @@ const DEFAULT_COUPONS: Coupon[] = [
     minOrderValue: 1200,
     isActive: true,
     expiresAt: null,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
+    createdAt: Date.now() - 90000,
+    updatedAt: Date.now() - 90000,
   },
   {
     id: 'FESTIVE50',
@@ -49,8 +51,8 @@ const DEFAULT_COUPONS: Coupon[] = [
     minOrderValue: 300,
     isActive: true,
     expiresAt: null,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
+    createdAt: Date.now() - 80000,
+    updatedAt: Date.now() - 80000,
   },
 ];
 
@@ -74,59 +76,138 @@ function getLocalCoupons(): Coupon[] {
 function saveLocalCoupons(coupons: Coupon[]): void {
   try {
     localStorage.setItem(LOCAL_STORAGE_COUPONS_KEY, JSON.stringify(coupons));
-    // Dispatch local storage custom event for cross-component realtime sync
+    // Dispatch local custom event for cross-component realtime sync
     window.dispatchEvent(new CustomEvent('coupons_updated', { detail: coupons }));
   } catch (err) {
     console.warn('[CouponService] Write local storage failed:', err);
   }
 }
 
+// Clean payload for Firebase writes (remove undefined)
+function sanitizeCoupon(coupon: Coupon): Record<string, any> {
+  const clean: Record<string, any> = {};
+  Object.keys(coupon).forEach((k) => {
+    const val = (coupon as any)[k];
+    if (val !== undefined) clean[k] = val;
+  });
+  return clean;
+}
+
 export const couponService = {
   /**
-   * Realtime subscription to all coupons (with resilient localStorage fallback)
+   * Realtime dual-sync subscription to all coupons (Firestore + Realtime Database)
    */
   subscribeToCoupons(callback: (coupons: Coupon[]) => void): Unsubscribe {
-    // Deliver local cache first immediately
-    callback(getLocalCoupons());
+    // Deliver local cache immediately for instant UI render
+    const cached = getLocalCoupons();
+    callback(cached);
+
+    // Auto-replicate any local coupons to Cloud Firestore & RTDB if not yet synced
+    if (cached.length > 0) {
+      setTimeout(() => {
+        cached.forEach(async (c) => {
+          try {
+            const clean = sanitizeCoupon(c);
+            const docRef = doc(db, COUPONS_COLLECTION, c.code);
+            await setDoc(docRef, clean, { merge: true });
+            const rtdbRef = ref(rtdb, `${RTDB_COUPONS_PATH}/${c.code}`);
+            await set(rtdbRef, clean);
+          } catch (e) {
+            // Background sync
+          }
+        });
+      }, 500);
+    }
 
     const handleCustomEvent = (e: any) => {
       if (e.detail) callback(e.detail);
     };
     window.addEventListener('coupons_updated', handleCustomEvent);
 
+    let isSubscribed = true;
+
+    // Helper to merge and sort coupon lists
+    const processCouponList = (list: Coupon[]) => {
+      if (!isSubscribed || list.length === 0) return;
+      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      saveLocalCoupons(list);
+      callback(list);
+    };
+
+    // 1. Subscribe to Cloud Firestore
+    let unsubFirestore: (() => void) | null = null;
     try {
       const colRef = collection(db, COUPONS_COLLECTION);
-      const unsubFirestore = onSnapshot(
+      unsubFirestore = onSnapshot(
         colRef,
         (snapshot) => {
-          if (snapshot.empty) {
-            callback(getLocalCoupons());
-            return;
+          if (!snapshot.empty) {
+            const list: Coupon[] = [];
+            snapshot.forEach((docSnap) => {
+              list.push({ id: docSnap.id, ...docSnap.data() } as Coupon);
+            });
+            processCouponList(list);
+          } else {
+            // Firestore collection is empty, trigger seed of defaults
+            this.seedDefaultCoupons();
           }
-          const coupons: Coupon[] = [];
-          snapshot.forEach((docSnap) => {
-            coupons.push({ id: docSnap.id, ...docSnap.data() } as Coupon);
-          });
-          coupons.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-          saveLocalCoupons(coupons);
-          callback(coupons);
         },
         (error) => {
-          // Graceful fallback to persistent cache when Firestore rules block collection
-          console.info('[CouponService] Using local persistent coupons storage:', error.message);
-          callback(getLocalCoupons());
+          console.warn('[CouponService] Firestore realtime listener info:', error.message);
         }
       );
-
-      return () => {
-        window.removeEventListener('coupons_updated', handleCustomEvent);
-        unsubFirestore();
-      };
     } catch (err) {
-      console.info('[CouponService] Firestore unavailable, using local persistent storage');
-      return () => {
-        window.removeEventListener('coupons_updated', handleCustomEvent);
-      };
+      console.warn('[CouponService] Firestore listener init failed:', err);
+    }
+
+    // 2. Subscribe to Firebase Realtime Database for instant multi-device sync
+    let unsubRtdb: (() => void) | null = null;
+    try {
+      const rtdbCouponsRef = ref(rtdb, RTDB_COUPONS_PATH);
+      unsubRtdb = onValue(
+        rtdbCouponsRef,
+        (snap) => {
+          if (snap.exists()) {
+            const data = snap.val();
+            const list: Coupon[] = Object.keys(data).map((k) => ({
+              id: k,
+              ...data[k],
+            }));
+            processCouponList(list);
+          }
+        },
+        (err) => {
+          console.warn('[CouponService] RTDB realtime listener info:', err.message);
+        }
+      );
+    } catch (err) {
+      console.warn('[CouponService] RTDB listener init failed:', err);
+    }
+
+    return () => {
+      isSubscribed = false;
+      window.removeEventListener('coupons_updated', handleCustomEvent);
+      if (unsubFirestore) unsubFirestore();
+      if (unsubRtdb) unsubRtdb();
+    };
+  },
+
+  /**
+   * Seed default coupons to cloud if empty
+   */
+  async seedDefaultCoupons(): Promise<void> {
+    try {
+      for (const def of DEFAULT_COUPONS) {
+        const clean = sanitizeCoupon(def);
+        // Firestore
+        const docRef = doc(db, COUPONS_COLLECTION, def.id);
+        await setDoc(docRef, clean, { merge: true });
+        // RTDB
+        const rtdbRef = ref(rtdb, `${RTDB_COUPONS_PATH}/${def.id}`);
+        await set(rtdbRef, clean);
+      }
+    } catch (err) {
+      console.info('[CouponService] Seed skipped:', err);
     }
   },
 
@@ -134,6 +215,7 @@ export const couponService = {
    * Fetch all coupons once
    */
   async getAllCoupons(): Promise<Coupon[]> {
+    // 1. Try Firestore
     try {
       const colRef = collection(db, COUPONS_COLLECTION);
       const snapshot = await getDocs(colRef);
@@ -147,28 +229,62 @@ export const couponService = {
         return coupons;
       }
     } catch (err) {
-      // Fallback
+      console.warn('[CouponService] Firestore getDocs failed:', err);
     }
+
+    // 2. Try RTDB
+    try {
+      const rtdbCouponsRef = ref(rtdb, RTDB_COUPONS_PATH);
+      const rtdbSnap = await get(rtdbCouponsRef);
+      if (rtdbSnap.exists()) {
+        const data = rtdbSnap.val();
+        const list: Coupon[] = Object.keys(data).map((k) => ({
+          id: k,
+          ...data[k],
+        }));
+        list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        saveLocalCoupons(list);
+        return list;
+      }
+    } catch (err) {
+      console.warn('[CouponService] RTDB get failed:', err);
+    }
+
     return getLocalCoupons();
   },
 
   /**
-   * Fetch a single coupon by code
+   * Fetch a single coupon by code (from Firestore -> RTDB -> Cache)
    */
   async getCouponByCode(code: string): Promise<Coupon | null> {
     const normalizedCode = code.trim().toUpperCase();
     if (!normalizedCode) return null;
 
+    // 1. Try Firestore direct lookup
     try {
       const docRef = doc(db, COUPONS_COLLECTION, normalizedCode);
       const snap = await getDoc(docRef);
       if (snap.exists()) {
-        return { id: snap.id, ...snap.data() } as Coupon;
+        const coupon = { id: snap.id, ...snap.data() } as Coupon;
+        return coupon;
       }
     } catch (err) {
-      // Fallback to local storage
+      console.warn('[CouponService] Firestore getCouponByCode lookup failed:', err);
     }
 
+    // 2. Try RTDB direct lookup
+    try {
+      const rtdbRef = ref(rtdb, `${RTDB_COUPONS_PATH}/${normalizedCode}`);
+      const rtdbSnap = await get(rtdbRef);
+      if (rtdbSnap.exists()) {
+        const coupon = { id: normalizedCode, ...rtdbSnap.val() } as Coupon;
+        return coupon;
+      }
+    } catch (err) {
+      console.warn('[CouponService] RTDB getCouponByCode lookup failed:', err);
+    }
+
+    // 3. Fallback to local cache
     const localList = getLocalCoupons();
     const found = localList.find((c) => c.code === normalizedCode || c.id === normalizedCode);
     return found || null;
@@ -180,7 +296,7 @@ export const couponService = {
   async validateCoupon(code: string, subtotal: number): Promise<CouponValidationResult> {
     const normalizedCode = code.trim().toUpperCase();
     if (!normalizedCode) {
-      return { isValid: false, discountAmount: 0, message: 'Please enter a coupon code.' };
+      return { isValid: false, discountAmount: 0, message: 'Please enter a promo code.' };
     }
 
     const coupon = await this.getCouponByCode(normalizedCode);
@@ -228,7 +344,7 @@ export const couponService = {
   },
 
   /**
-   * Save / Upsert a coupon (admin)
+   * Save / Upsert a coupon (admin) — Writes to Firestore, RTDB & LocalStorage
    */
   async saveCoupon(couponData: Omit<Coupon, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<string> {
     const code = couponData.code.trim().toUpperCase();
@@ -262,58 +378,86 @@ export const couponService = {
     }
     saveLocalCoupons(existingCoupons);
 
-    // 2. Try Firestore replication in background
+    const cleanPayload = sanitizeCoupon(payload);
+
+    // 2. Replicate to Cloud Firestore
     try {
       const docRef = doc(db, COUPONS_COLLECTION, docId);
-      const cleanPayload: Record<string, any> = {};
-      Object.keys(payload).forEach((k) => {
-        const val = (payload as any)[k];
-        if (val !== undefined) cleanPayload[k] = val;
-      });
       await setDoc(docRef, cleanPayload, { merge: true });
-    } catch (fireErr) {
-      console.warn('[CouponService] Firestore save sync skipped, cached locally:', fireErr);
+    } catch (fireErr: any) {
+      console.warn('[CouponService] Firestore save sync error:', fireErr?.message || fireErr);
+    }
+
+    // 3. Replicate to Firebase Realtime Database for instant cross-device broadcast
+    try {
+      const rtdbRef = ref(rtdb, `${RTDB_COUPONS_PATH}/${docId}`);
+      await set(rtdbRef, cleanPayload);
+    } catch (rtdbErr: any) {
+      console.warn('[CouponService] RTDB save sync error:', rtdbErr?.message || rtdbErr);
     }
 
     return docId;
   },
 
   /**
-   * Toggle coupon active state
+   * Toggle coupon active state across Firestore, RTDB & LocalStorage
    */
   async toggleCouponActive(id: string, isActive: boolean): Promise<void> {
-    // 1. Update persistent local storage first
+    const normalizedId = id.trim().toUpperCase();
+    const now = Date.now();
+
+    // 1. Update persistent local storage
     const existingCoupons = getLocalCoupons();
-    const target = existingCoupons.find((c) => c.id === id || c.code === id);
+    const target = existingCoupons.find((c) => c.id === normalizedId || c.code === normalizedId);
     if (target) {
       target.isActive = isActive;
-      target.updatedAt = Date.now();
+      target.updatedAt = now;
       saveLocalCoupons(existingCoupons);
     }
 
-    // 2. Try Firestore
+    // 2. Update Cloud Firestore
     try {
-      const docRef = doc(db, COUPONS_COLLECTION, id);
-      await setDoc(docRef, { isActive, updatedAt: Date.now() }, { merge: true });
+      const docRef = doc(db, COUPONS_COLLECTION, normalizedId);
+      await setDoc(docRef, { isActive, updatedAt: now }, { merge: true });
     } catch (fireErr) {
-      console.warn('[CouponService] Firestore toggle sync skipped, updated locally:', fireErr);
+      console.warn('[CouponService] Firestore toggle sync error:', fireErr);
+    }
+
+    // 3. Update RTDB
+    try {
+      const rtdbRef = ref(rtdb, `${RTDB_COUPONS_PATH}/${normalizedId}/isActive`);
+      await set(rtdbRef, isActive);
+      const rtdbUpdateRef = ref(rtdb, `${RTDB_COUPONS_PATH}/${normalizedId}/updatedAt`);
+      await set(rtdbUpdateRef, now);
+    } catch (rtdbErr) {
+      console.warn('[CouponService] RTDB toggle sync error:', rtdbErr);
     }
   },
 
   /**
-   * Delete coupon permanently
+   * Delete coupon permanently across Firestore, RTDB & LocalStorage
    */
   async deleteCoupon(id: string): Promise<void> {
+    const normalizedId = id.trim().toUpperCase();
+
     // 1. Update local storage
-    const existingCoupons = getLocalCoupons().filter((c) => c.id !== id && c.code !== id);
+    const existingCoupons = getLocalCoupons().filter((c) => c.id !== normalizedId && c.code !== normalizedId);
     saveLocalCoupons(existingCoupons);
 
-    // 2. Try Firestore
+    // 2. Delete from Cloud Firestore
     try {
-      const docRef = doc(db, COUPONS_COLLECTION, id);
+      const docRef = doc(db, COUPONS_COLLECTION, normalizedId);
       await deleteDoc(docRef);
     } catch (fireErr) {
-      console.warn('[CouponService] Firestore delete sync skipped, removed locally:', fireErr);
+      console.warn('[CouponService] Firestore delete sync error:', fireErr);
+    }
+
+    // 3. Delete from RTDB
+    try {
+      const rtdbRef = ref(rtdb, `${RTDB_COUPONS_PATH}/${normalizedId}`);
+      await remove(rtdbRef);
+    } catch (rtdbErr) {
+      console.warn('[CouponService] RTDB delete sync error:', rtdbErr);
     }
   },
 };

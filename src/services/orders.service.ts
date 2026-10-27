@@ -171,7 +171,7 @@ export const ordersService = {
 
       // Combine RTDB live orders + Firestore completed orders + local memory orders
       const map = new Map<string, Order>();
-    [...completedOrders, ...liveOrders].forEach(o => {
+      [...completedOrders, ...liveOrders].forEach(o => {
         map.set(o.id, o);
       });
 
@@ -257,6 +257,8 @@ export const ordersService = {
         let subtotal = 0;
         const itemSnapshots = [];
         const stockUpdates: { ref: any; newStock: number }[] = [];
+        let hasAnyPreOrder = false;
+        let allItemsPreOrder = true;
 
         // Phase B: Concurrency validation and inventory deduction
         for (const { itemReq, productRef, productSnap } of productReads) {
@@ -266,28 +268,47 @@ export const ordersService = {
 
           const productData = productSnap.data();
           const currentStock = Number(productData.stockQuantity) || 0;
+          const isItemPreOrder = Boolean(itemReq.isPreOrder || currentStock <= 0);
 
-          if (currentStock < itemReq.quantity) {
-            throw new Error(`Insufficient stock for "${productData.name || 'Product'}". Only ${currentStock} left in stock.`);
+          if (isItemPreOrder) {
+            hasAnyPreOrder = true;
+          } else {
+            allItemsPreOrder = false;
+            if (currentStock < itemReq.quantity) {
+              throw new Error(`Insufficient stock for "${productData.name || 'Product'}". Only ${currentStock} left in stock.`);
+            }
           }
 
-          const sellingPrice = Number(productData.sellingPrice) || 0;
-          const itemSubtotal = sellingPrice * itemReq.quantity;
+          const isSpecialOffer = Boolean(itemReq.isSpecialOffer && itemReq.specialOfferPrice !== undefined && itemReq.specialOfferPrice > 0);
+          const effectiveUnitPrice = isSpecialOffer ? Number(itemReq.specialOfferPrice) : (Number(productData.sellingPrice) || 0);
+          const itemSubtotal = effectiveUnitPrice * itemReq.quantity;
           subtotal += itemSubtotal;
 
           itemSnapshots.push({
             productId: itemReq.productId,
             name: productData.name,
-            unitPrice: sellingPrice,
-            originalUnitPrice: Number(productData.originalPrice) || sellingPrice,
+            unitPrice: effectiveUnitPrice,
+            originalUnitPrice: Number(productData.originalPrice) || Number(productData.sellingPrice) || effectiveUnitPrice,
             quantity: itemReq.quantity,
             image: productData.images?.[0] || '',
             subtotal: itemSubtotal,
+            isPreOrder: isItemPreOrder,
+            isSpecialOffer,
+            specialOfferPrice: isSpecialOffer ? effectiveUnitPrice : undefined,
           });
 
-          const newStock = Math.max(0, currentStock - itemReq.quantity);
-          stockUpdates.push({ ref: productRef, newStock });
+          if (!isItemPreOrder) {
+            const newStock = Math.max(0, currentStock - itemReq.quantity);
+            stockUpdates.push({ ref: productRef, newStock });
+          }
         }
+
+        const calculatedOrderType: 'standard' | 'pre_order' | 'mixed' = 
+          allItemsPreOrder ? 'pre_order' : hasAnyPreOrder ? 'mixed' : 'standard';
+
+        const initialNote = hasAnyPreOrder
+          ? 'Pre-order request received by Diyas N Duas. Pending store confirmation & craft scheduling.'
+          : 'Order request received by Diyas N Duas. Pending store confirmation.';
 
         // Phase C: Computations (Delivery, Coupons, Tax)
         const calculatedDeliveryFee = subtotal >= freeDeliveryThreshold ? 0 : deliveryFee;
@@ -320,6 +341,9 @@ export const ordersService = {
           items: itemSnapshots,
           itemCount: itemSnapshots.reduce((sum, item) => sum + item.quantity, 0),
           subtotal,
+          isPreOrder: hasAnyPreOrder,
+          orderType: calculatedOrderType,
+          hasPreOrderItems: hasAnyPreOrder,
           discountAmount: couponDiscount,
           couponCode: validCouponCode || undefined,
           couponDiscount: couponDiscount > 0 ? couponDiscount : undefined,
@@ -334,7 +358,7 @@ export const ordersService = {
             {
               status: 'pending',
               timestamp: now,
-              note: 'Order request received by Diyas N Duas. Pending store confirmation.',
+              note: initialNote,
             }
           ],
           createdAt: now,
@@ -369,6 +393,9 @@ export const ordersService = {
       // High-availability fallback (if offline or non-critical error)
       let subtotal = 0;
       const itemSnapshots = [];
+      let hasAnyPreOrderFallback = false;
+      let allItemsPreOrderFallback = true;
+
       for (const itemReq of request.items) {
         let productData: any = null;
         const productRef = doc(db, PRODUCTS_COLLECTION, itemReq.productId);
@@ -378,8 +405,16 @@ export const ordersService = {
         } catch (e) {}
 
         if (!productData) throw new Error('Product is no longer available.');
-        if ((productData.stockQuantity || 0) < itemReq.quantity) {
-          throw new Error(`Insufficient stock for product "${productData.name}". Available: ${productData.stockQuantity}`);
+        const currentStock = Number(productData.stockQuantity) || 0;
+        const isItemPreOrder = Boolean(itemReq.isPreOrder || currentStock <= 0);
+
+        if (isItemPreOrder) {
+          hasAnyPreOrderFallback = true;
+        } else {
+          allItemsPreOrderFallback = false;
+          if (currentStock < itemReq.quantity) {
+            throw new Error(`Insufficient stock for product "${productData.name}". Available: ${currentStock}`);
+          }
         }
 
         const itemSubtotal = productData.sellingPrice * itemReq.quantity;
@@ -392,14 +427,24 @@ export const ordersService = {
           quantity: itemReq.quantity,
           image: productData.images?.[0] || '',
           subtotal: itemSubtotal,
+          isPreOrder: isItemPreOrder,
         });
 
-        // Best effort stock update
-        try {
-          const newStock = Math.max(0, (productData.stockQuantity || 0) - itemReq.quantity);
-          await updateDoc(productRef, { stockQuantity: newStock, updatedAt: now });
-        } catch (e) {}
+        // Best effort stock update for in-stock items
+        if (!isItemPreOrder) {
+          try {
+            const newStock = Math.max(0, currentStock - itemReq.quantity);
+            await updateDoc(productRef, { stockQuantity: newStock, updatedAt: now });
+          } catch (e) {}
+        }
       }
+
+      const calculatedOrderTypeFallback: 'standard' | 'pre_order' | 'mixed' = 
+        allItemsPreOrderFallback ? 'pre_order' : hasAnyPreOrderFallback ? 'mixed' : 'standard';
+
+      const initialNoteFallback = hasAnyPreOrderFallback
+        ? 'Pre-order request received by Diyas N Duas. Pending store confirmation & craft scheduling.'
+        : 'Order request received by Diyas N Duas. Pending store confirmation.';
 
       const calculatedDeliveryFee = subtotal >= freeDeliveryThreshold ? 0 : deliveryFee;
       let couponDiscount = 0;
@@ -426,6 +471,9 @@ export const ordersService = {
         items: itemSnapshots,
         itemCount: itemSnapshots.reduce((sum, item) => sum + item.quantity, 0),
         subtotal,
+        isPreOrder: hasAnyPreOrderFallback,
+        orderType: calculatedOrderTypeFallback,
+        hasPreOrderItems: hasAnyPreOrderFallback,
         discountAmount: couponDiscount,
         couponCode: validCouponCode || undefined,
         couponDiscount: couponDiscount > 0 ? couponDiscount : undefined,
@@ -440,7 +488,7 @@ export const ordersService = {
           {
             status: 'pending',
             timestamp: now,
-            note: 'Order request received by Diyas N Duas. Pending store confirmation.',
+            note: initialNoteFallback,
           }
         ],
         createdAt: now,
@@ -472,6 +520,8 @@ export const ordersService = {
         totalAmount: sanitizedData.total,
         customerName: request.customerInfo.fullName,
         timestamp: now,
+        isPreOrder: sanitizedData.isPreOrder,
+        orderType: sanitizedData.orderType,
       });
     } catch (err) {
       console.warn('[RTDB Notification Warning]', err);
@@ -516,9 +566,10 @@ export const ordersService = {
 
     const sanitizedOrder = sanitizeForFirebase(updatedOrder);
 
-    // If cancelled, restore stock quantity in Firestore
+    // If cancelled, restore stock quantity in Firestore (only for in-stock items, not pre-orders)
     if (newStatus === 'cancelled' && existingOrder.orderStatus !== 'cancelled') {
       for (const item of existingOrder.items) {
+        if (item.isPreOrder) continue;
         try {
           const pRef = doc(db, PRODUCTS_COLLECTION, item.productId);
           const pSnap = await getDoc(pRef);

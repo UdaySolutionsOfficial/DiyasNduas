@@ -15,7 +15,7 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { useToast } from '../../contexts/ToastContext';
 import { settingsService } from '../../services/settings.service';
 import { StoreSettings } from '../../types/settings';
-import { Search, Package, Printer, MessageSquare, Copy, Phone, HelpCircle, AlertTriangle, XCircle } from 'lucide-react';
+import { Search, Package, Printer, MessageSquare, Copy, Phone, HelpCircle, AlertTriangle, XCircle, Sparkles } from 'lucide-react';
 import { useDocumentSeo } from '../hooks/useDocumentSeo';
 
 export const TrackOrder: React.FC = () => {
@@ -104,7 +104,17 @@ export const TrackOrder: React.FC = () => {
     toast.success('Copied!', `Order ID ${order.orderId} copied to clipboard.`);
   };
 
-  const isCancelable = order?.orderStatus === 'pending' || order?.orderStatus === 'confirmed';
+  const isPreOrder = Boolean(
+    order?.isPreOrder ||
+    order?.orderType === 'pre_order' ||
+    order?.orderType === 'mixed' ||
+    order?.items?.some((i) => i.isPreOrder)
+  );
+
+  const isCancelable =
+    order?.orderStatus === 'pending' ||
+    order?.orderStatus === 'confirmed' ||
+    order?.orderStatus === 'pre_order_confirmed';
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 animate-fade-in pb-12">
@@ -174,6 +184,25 @@ export const TrackOrder: React.FC = () => {
             </Card>
           )}
 
+          {/* Pre-Order Notice Banner */}
+          {isPreOrder && (
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-900/20 via-indigo-900/15 to-purple-900/20 border border-purple-500/30 flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 flex-shrink-0 mt-0.5">
+                <Sparkles className="w-5 h-5 animate-pulse" />
+              </div>
+              <div className="text-xs space-y-1">
+                <div className="font-extrabold text-sm text-purple-700 dark:text-purple-300">
+                  {order.orderType === 'mixed' ? 'Mixed Order (Includes Pre-Order Items)' : '✨ Pre-Order Booking'}
+                </div>
+                <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                  {order.orderStatus === 'pre_order_confirmed'
+                    ? 'Your pre-order has been accepted! Our artisans have started crafting your sacred diyas.'
+                    : 'Your pre-order booking request is registered. Once our team accepts the pre-order, you will be notified.'}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Order Header Card */}
           <Card glass className="p-6 space-y-4 shadow-xl border-brand-200/60 dark:border-brand-900/60">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-200 dark:border-slate-800">
@@ -181,7 +210,7 @@ export const TrackOrder: React.FC = () => {
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
                   Order Reference
                 </span>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-2xl font-mono font-black text-brand-600 dark:text-brand-400">
                     {order.orderId}
                   </span>
@@ -192,6 +221,12 @@ export const TrackOrder: React.FC = () => {
                   >
                     <Copy className="w-4 h-4" />
                   </button>
+                  {isPreOrder && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-purple-100 text-purple-700 dark:bg-purple-950/80 dark:text-purple-300 border border-purple-300 dark:border-purple-800">
+                      <Sparkles className="w-3 h-3" />
+                      {order.orderType === 'mixed' ? 'Mixed Order' : 'Pre-Order'}
+                    </span>
+                  )}
                 </div>
                 <span className="text-xs text-slate-400">{formatDate(order.createdAt)}</span>
               </div>
@@ -228,11 +263,14 @@ export const TrackOrder: React.FC = () => {
 
             {/* Visual Status Progress Timeline */}
             <div className="pt-2">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">Live Order Progress</h4>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">
+                {isPreOrder ? 'Live Pre-Order Progress' : 'Live Order Progress'}
+              </h4>
               <OrderStatusTimeline 
                 currentStatus={order.orderStatus} 
                 statusHistory={order.statusHistory}
                 cancellationReason={order.cancellationReason}
+                isPreOrder={isPreOrder}
               />
             </div>
           </Card>
@@ -279,7 +317,18 @@ export const TrackOrder: React.FC = () => {
                       <img src={item.image} alt={item.name} className="w-10 h-10 rounded-lg object-cover bg-slate-100" />
                     )}
                     <div>
-                      <h4 className="font-bold text-slate-900 dark:text-slate-100">{item.name}</h4>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h4 className="font-bold text-slate-900 dark:text-slate-100">{item.name}</h4>
+                        {item.isSpecialOffer ? (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-black bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                            <Sparkles className="w-2.5 h-2.5" /> Milestone Offer
+                          </span>
+                        ) : item.isPreOrder ? (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-black bg-purple-100 text-purple-700 dark:bg-purple-950/70 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                            <Sparkles className="w-2.5 h-2.5" /> Pre-Order
+                          </span>
+                        ) : null}
+                      </div>
                       <span className="text-slate-400">Qty: {item.quantity} × {formatINR(item.unitPrice)}</span>
                     </div>
                   </div>
