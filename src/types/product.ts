@@ -6,6 +6,7 @@ export interface ProductSection {
 export interface Product {
   id: string;
   name: string;
+  slug?: string; // SEO friendly URL slug (e.g. royal-peacock-lotus-diya)
   description: string;
   sections?: ProductSection[]; // Optional multiple structured paragraphs with optional title
   categoryId: string;

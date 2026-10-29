@@ -6,9 +6,17 @@ import { Button } from '../../components/ui/Button';
 import { Link } from 'react-router-dom';
 
 export const BannerCarousel: React.FC = () => {
-  const [banners, setBanners] = useState<Banner[]>([]);
+  const [banners, setBanners] = useState<Banner[]>(() => {
+    try {
+      return typeof bannersService.getCachedBanners === 'function'
+        ? bannersService.getCachedBanners()
+        : [];
+    } catch (_) {
+      return [];
+    }
+  });
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const touchStartX = useRef<number | null>(null);
 

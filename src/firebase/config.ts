@@ -1,5 +1,11 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getFirestore, Firestore } from 'firebase/firestore';
+import { 
+  initializeFirestore, 
+  getFirestore, 
+  Firestore, 
+  persistentLocalCache, 
+  persistentMultipleTabManager 
+} from 'firebase/firestore';
 import { getDatabase, Database } from 'firebase/database';
 import { getAuth, Auth } from 'firebase/auth';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
@@ -21,8 +27,23 @@ if (!getApps().length) {
   app = getApp();
 }
 
-// Export Firebase Service instances
-export const db: Firestore = getFirestore(app);
+// Export Firebase Firestore instance with Persistent Multi-Tab Local Cache
+function initFirestore(firebaseApp: FirebaseApp): Firestore {
+  try {
+    if (typeof window !== 'undefined') {
+      return initializeFirestore(firebaseApp, {
+        localCache: persistentLocalCache({
+          tabManager: persistentMultipleTabManager()
+        })
+      });
+    }
+  } catch (err) {
+    console.warn('[Firebase Firestore] Persistent cache initialization fallback:', err);
+  }
+  return getFirestore(firebaseApp);
+}
+
+export const db: Firestore = initFirestore(app);
 export const rtdb: Database = getDatabase(app);
 export const auth: Auth = getAuth(app);
 export const storage: FirebaseStorage = getStorage(app);

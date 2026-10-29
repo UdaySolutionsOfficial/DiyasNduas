@@ -5,7 +5,9 @@ import { Modal } from '../../components/ui/Modal';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { formatINR, formatDiscountPercentage } from '../../utils/formatters';
-import { ShoppingBag, Zap, Sparkles, ImageOff, ShieldCheck, Truck, Heart, Minus, Plus, MessageCircle } from 'lucide-react';
+import { getProductSlug, copyProductLink, shareProduct, getWhatsAppProductShareUrl } from '../../utils/slugify';
+import { useToast } from '../../contexts/ToastContext';
+import { ShoppingBag, Zap, Sparkles, ImageOff, ShieldCheck, Truck, Heart, Minus, Plus, MessageCircle, Share2, Copy, Check } from 'lucide-react';
 import { useCart } from '../../contexts/CartContext';
 import { useWishlist } from '../../contexts/WishlistContext';
 import { useNavigate } from 'react-router-dom';
@@ -26,6 +28,28 @@ export const ProductDetailsView: React.FC<ProductDetailsViewProps> = ({ product,
   const { addToCart } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
   const navigate = useNavigate();
+  const [copied, setCopied] = useState(false);
+  const toast = useToast();
+
+  const handleShare = async () => {
+    if (!product) return;
+    const res = await shareProduct(product);
+    if (res === 'copied') {
+      setCopied(true);
+      toast.success('Link Copied! 🔗', `Direct link for "${product.name}" copied to clipboard!`);
+      setTimeout(() => setCopied(false), 2500);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    if (!product) return;
+    const ok = await copyProductLink(product);
+    if (ok) {
+      setCopied(true);
+      toast.success('Link Copied! 🔗', `Direct link for "${product.name}" copied to clipboard!`);
+      setTimeout(() => setCopied(false), 2500);
+    }
+  };
 
   if (!product) return null;
 
@@ -92,6 +116,15 @@ export const ProductDetailsView: React.FC<ProductDetailsViewProps> = ({ product,
                   {discountPercent}% OFF
                 </span>
               )}
+              <button
+                type="button"
+                onClick={handleShare}
+                className="p-2 rounded-full backdrop-blur-md transition-all shadow-md active:scale-90 bg-white/80 dark:bg-slate-900/80 text-slate-600 dark:text-slate-300 hover:text-brand-500"
+                aria-label="Share product"
+                title="Share or Copy Direct Link"
+              >
+                <Share2 className="w-4 h-4" />
+              </button>
               <button
                 onClick={() => toggleWishlist(product)}
                 className={`p-2 rounded-full backdrop-blur-md transition-all shadow-md active:scale-90 ${
@@ -240,6 +273,51 @@ export const ProductDetailsView: React.FC<ProductDetailsViewProps> = ({ product,
                 ))}
               </div>
             )}
+          </div>
+
+                    {/* Social Share & Dedicated Link Box */}
+          <div className="p-3 rounded-2xl bg-gradient-to-r from-brand-50/60 to-amber-50/50 dark:from-slate-800/80 dark:to-slate-800/50 border border-brand-200/70 dark:border-slate-700 shadow-2xs space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-extrabold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <Share2 className="w-3.5 h-3.5 text-brand-500" />
+                <span>Share Diya with Friends & Family:</span>
+              </span>
+              <span className="text-[10px] text-slate-400 font-mono truncate max-w-[140px]">
+                /p/{getProductSlug(product)}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <a
+                href={getWhatsAppProductShareUrl(product)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 py-1.5 px-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-colors"
+                title="Share on WhatsApp"
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+                <span>WhatsApp</span>
+              </a>
+
+              <button
+                type="button"
+                onClick={handleCopyLink}
+                className="flex-1 py-1.5 px-2.5 rounded-xl bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-colors"
+                title="Copy Direct Product Link"
+              >
+                {copied ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-500" />
+                    <span className="text-emerald-600 dark:text-emerald-400">Copied! ✓</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5 text-brand-500" />
+                    <span>Copy Link</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
           {/* Value Proposition Highlights */}

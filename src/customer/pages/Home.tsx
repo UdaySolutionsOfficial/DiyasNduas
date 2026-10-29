@@ -5,6 +5,7 @@ import { CategoryFilter } from '../components/CategoryFilter';
 import { ProductSearch } from '../components/ProductSearch';
 import { ProductGrid } from '../components/ProductGrid';
 import { ProductDetailsView } from '../components/ProductDetailsView';
+import { WhatsAppFloatingButton } from '../components/WhatsAppFloatingButton';
 import { HorizontalProductShowcase } from '../components/HorizontalProductShowcase';
 import { productsService } from '../../services/products.service';
 import { settingsService } from '../../services/settings.service';
@@ -22,7 +23,8 @@ export const Home: React.FC = () => {
     description: 'Shop handcrafted festive diyas, terracotta clay lamps, brass deepams, and sacred essentials at Diyas N Duas. Direct safe delivery across India.',
   });
 
-  // 1. Welcome Experience State
+  
+    // 1. Welcome Splash Experience State
   const [showWelcome, setShowWelcome] = useState<boolean>(() => {
     return !sessionStorage.getItem('ck_welcome_seen');
   });
@@ -33,27 +35,22 @@ export const Home: React.FC = () => {
   };
 
   // 2. Data State
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<Product[]>(() => productsService.getCachedProducts(true));
   const [settings, setSettings] = useState<StoreSettings>(() => settingsService.getCachedSettings());
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => productsService.getCachedProducts(true).length === 0);
 
   // 3. Filter & Search State
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
+  
+
+
   useEffect(() => {
     const unsubscribeProducts = productsService.subscribeToProducts((prodsData) => {
       setProducts(prodsData);
       setLoading(false);
-      if (prodsData && prodsData.length > 0) {
-        prodsData.slice(0, 8).forEach((p) => {
-          if (p.images && p.images[0]) {
-            const img = new Image();
-            img.src = p.images[0];
-          }
-        });
-      }
     }, true);
 
     const unsubscribeSettings = settingsService.subscribeToStoreSettings((settingsData) => {
@@ -500,6 +497,9 @@ export const Home: React.FC = () => {
           onClose={() => setSelectedProduct(null)}
         />
       </div>
+
+      {/* WhatsApp Floating Button: Only on Home page and hidden when product details modal is open */}
+      {!selectedProduct && <WhatsAppFloatingButton settings={settings} />}
     </>
   );
 };

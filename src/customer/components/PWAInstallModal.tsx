@@ -30,11 +30,11 @@ export const PWAInstallModal: React.FC = () => {
       }, delayMs);
     };
 
-    // Check if the welcome animation is still active in this session
+    // Check if the welcome splash animation is still active in this session
     const isWelcomePending = typeof window !== 'undefined' && !sessionStorage.getItem('ck_welcome_seen');
 
     const handleWelcomeCompleted = () => {
-      // Natural 1.2s delay after the welcome video completes
+      // Natural 1.2s delay after the welcome splash completes
       scheduleOpenModal(1200);
     };
 
@@ -46,7 +46,6 @@ export const PWAInstallModal: React.FC = () => {
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      // Only schedule immediately if welcome animation is NOT currently playing
       const currentWelcomePending = typeof window !== 'undefined' && !sessionStorage.getItem('ck_welcome_seen');
       if (!currentWelcomePending) {
         scheduleOpenModal(1200);

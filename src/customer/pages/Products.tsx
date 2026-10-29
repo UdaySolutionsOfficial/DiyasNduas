@@ -21,12 +21,15 @@ export const Products: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialCategory = searchParams.get('category');
 
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [products, setProducts] = useState<Product[]>(() => productsService.getCachedProducts(true));
+  const [loading, setLoading] = useState(() => productsService.getCachedProducts(true).length === 0);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(initialCategory);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
+  
+
 
   useEffect(() => {
     const unsubscribe = productsService.subscribeToProducts((data) => {

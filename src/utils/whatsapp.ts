@@ -382,3 +382,28 @@ export function openWhatsAppProductInterest(product: Product, whatsappNumber?: s
   const url = `https://wa.me/${formattedPhone}?text=${encodedText}`;
   return openWhatsAppUrl(url);
 }
+
+
+/**
+ * Builds a friendly customer inquiry message for the floating WhatsApp button.
+ */
+export function buildWhatsAppGeneralChatMessage(storeName = env.store.name): string {
+  return `Namaste ${storeName}! 🪔✨
+
+I am browsing your handcrafted festive diyas & sacred essentials store and need some assistance with an inquiry or order. Could you please help me?
+
+Thank you!`;
+}
+
+/**
+ * Opens general customer assistance chat on WhatsApp with prefilled festive greeting.
+ */
+export function openWhatsAppGeneralChat(whatsappNumber?: string, storeName = env.store.name): boolean {
+  const targetPhone = whatsappNumber || env.store.supportPhone;
+  const rawPhone = targetPhone.replace(/[^0-9]/g, '');
+  const formattedPhone = rawPhone.length === 10 ? `91${rawPhone}` : rawPhone;
+  const message = buildWhatsAppGeneralChatMessage(storeName);
+  const encodedText = encodeURIComponent(message);
+  const url = `https://wa.me/${formattedPhone}?text=${encodedText}`;
+  return openWhatsAppUrl(url);
+}

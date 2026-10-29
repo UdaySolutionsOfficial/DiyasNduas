@@ -27,11 +27,11 @@ export const NotificationPromptModal: React.FC = () => {
     }
 
     const pwaDismissed = localStorage.getItem('ck_pwa_prompt_dismissed') === 'true';
+    const isWelcomePending = typeof window !== 'undefined' && !sessionStorage.getItem('ck_welcome_seen');
     const isStandalone = typeof window !== 'undefined' && (
       window.matchMedia('(display-mode: standalone)').matches ||
       (window.navigator as any).standalone === true
     );
-    const isWelcomePending = typeof window !== 'undefined' && !sessionStorage.getItem('ck_welcome_seen');
 
     // If PWA modal hasn't been decided yet and not in standalone app, strictly wait for PWA user decision
     if (!pwaDismissed && !isStandalone) {
@@ -52,7 +52,6 @@ export const NotificationPromptModal: React.FC = () => {
       };
     } else {
       // PWA decision was already made or app is installed.
-      // If welcome animation is currently pending, wait for it before showing notifications prompt
       const scheduleNotificationPrompt = () => {
         setTimeout(() => {
           const recheck = localStorage.getItem(NOTIFICATION_PROMPT_KEY);

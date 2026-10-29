@@ -10,8 +10,24 @@ import { db } from '../firebase/config';
 import { Category, CategoryDraft } from '../types/category';
 
 const CATEGORIES_COLLECTION = 'categories';
+const CATEGORIES_CACHE_KEY = 'ck_cached_categories';
 
 export const categoriesService = {
+  getCachedCategories(): Category[] {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const cached = localStorage.getItem(CATEGORIES_CACHE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('[CategoriesService] Failed reading cached categories:', e);
+    }
+    return [];
+  },
+
   async getAllCategories(onlyActive = true): Promise<Category[]> {
     try {
       const colRef = collection(db, CATEGORIES_COLLECTION);
@@ -22,12 +38,19 @@ export const categoriesService = {
           cats = cats.filter(c => c.isActive);
         }
         cats.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+
+        try {
+          if (typeof window !== 'undefined' && window.localStorage && cats.length > 0) {
+            localStorage.setItem(CATEGORIES_CACHE_KEY, JSON.stringify(cats));
+          }
+        } catch (_) {}
+
         return cats;
       }
     } catch (error) {
       console.warn('[CategoriesService] Firestore fetch failed:', error);
     }
-    return [];
+    return this.getCachedCategories();
   },
 
   async createCategory(draft: CategoryDraft): Promise<string> {

@@ -25,35 +25,28 @@ import { Link } from 'react-router-dom';
 import { ROUTES } from '../../constants/routes';
 
 export const Dashboard: React.FC = () => {
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<Product[]>(() => productsService.getCachedProducts(false));
   const [orders, setOrders] = useState<Order[]>([]);
-  const [settings, setSettings] = useState<StoreSettings | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [settings, setSettings] = useState<StoreSettings | null>(() => settingsService.getCachedSettings());
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const loadDashboardData = async () => {
-      setLoading(true);
-      try {
-        const [prods, ords, sets] = await Promise.all([
-          productsService.getAllProducts(),
-          ordersService.getAllOrders(),
-          settingsService.getStoreSettings(),
-        ]);
-        setProducts(prods);
-        setOrders(ords);
-        setSettings(sets);
-      } catch (err) {
-        console.warn('[Admin Dashboard]', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadDashboardData();
-
-    // Live subscription to order changes so Today's Orders and Today's Value stay reactive
+    // 1. Live realtime subscription to orders immediately
     const unsubscribeOrders = ordersService.subscribeToAllOrders((updatedOrders) => {
       setOrders(updatedOrders);
+      setLoading(false);
     });
+
+    // 2. Concurrently load products without blocking UI
+    productsService.getAllProducts().then((prods) => {
+      setProducts(prods);
+      setLoading(false);
+    }).catch(err => console.warn('[Dashboard Products]', err));
+
+    // 3. Concurrently sync store settings
+    settingsService.getStoreSettings().then((sets) => {
+      if (sets) setSettings(sets);
+    }).catch(err => console.warn('[Dashboard Settings]', err));
 
     return () => unsubscribeOrders();
   }, []);

@@ -11,14 +11,15 @@ import { SearchInput } from '../../components/ui/SearchInput';
 import { Loading } from '../../components/ui/Loading';
 import { ConfirmationDialog } from '../../components/ui/ConfirmationDialog';
 import { formatINR, formatDiscountPercentage } from '../../utils/formatters';
-import { Plus, Edit2, Power, Trash2, FileSpreadsheet, Layers, MessageCircle, Sparkles } from 'lucide-react';
+import { Plus, Edit2, Power, Trash2, FileSpreadsheet, Layers, MessageCircle, Sparkles, Share2 } from 'lucide-react';
+import { copyProductLink } from '../../utils/slugify';
 import { useToast } from '../../contexts/ToastContext';
 import { revenueExportService } from '../../services/revenueExport.service';
 
 export const AdminProducts: React.FC = () => {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [products, setProducts] = useState<Product[]>(() => productsService.getCachedProducts(false));
+  const [categories, setCategories] = useState<Category[]>(() => categoriesService.getCachedCategories());
+  const [loading, setLoading] = useState(() => productsService.getCachedProducts(false).length === 0);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -61,7 +62,16 @@ export const AdminProducts: React.FC = () => {
     }
   };
 
-    const handleTogglePreOrder = async (prod: Product) => {
+    const handleCopyProductLink = async (prod: Product) => {
+    const ok = await copyProductLink(prod);
+    if (ok) {
+      toast.success(
+        'Product Link Copied! 🔗',
+        `"${prod.name}" link copied to clipboard. Ready to paste in Instagram, WhatsApp, or Bio!`
+      );
+    }
+  };
+  const handleTogglePreOrder = async (prod: Product) => {
     try {
       const nextValue = !prod.allowPreOrder;
       await productsService.updateProduct(prod.id, { allowPreOrder: nextValue });
@@ -392,6 +402,16 @@ export const AdminProducts: React.FC = () => {
 
               {/* Card Actions (Edit, Power, Delete) - Inline [Icon] Text Alignment */}
               <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleCopyProductLink(product)}
+                  className="px-2.5 text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-950/40 inline-flex items-center justify-center gap-1 font-bold text-xs"
+                  title="Copy Shareable Link for Instagram / WhatsApp"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Share</span>
+                </Button>
                 <Button
                   size="sm"
                   variant="secondary"

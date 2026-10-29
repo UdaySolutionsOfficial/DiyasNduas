@@ -8,6 +8,15 @@ export interface SeoProps {
   ogImageAlt?: string;
   ogType?: 'website' | 'article' | 'product';
   noindex?: boolean;
+  productData?: {
+    name: string;
+    price: number;
+    originalPrice?: number;
+    inStock: boolean;
+    sku?: string;
+    category?: string;
+    images?: string[];
+  };
 }
 
 const DEFAULT_TITLE = 'Diyas N Duas — Handcrafted Festive Diyas & Sacred Essentials';
@@ -40,10 +49,26 @@ function updateLinkTag(rel: string, href: string) {
   link.setAttribute('href', href);
 }
 
+function updateJsonLd(id: string, data: Record<string, any> | null) {
+  let script = document.getElementById(id) as HTMLScriptElement | null;
+  if (!data) {
+    if (script && script.parentNode) {
+      script.parentNode.removeChild(script);
+    }
+    return;
+  }
+  if (!script) {
+    script = document.createElement('script');
+    script.id = id;
+    script.type = 'application/ld+json';
+    document.head.appendChild(script);
+  }
+  script.textContent = JSON.stringify(data);
+}
+
 /**
- * Lightweight client-side SEO manager
- * Safely updates document.title, canonical URL, meta description, and Open Graph tags on route changes
- * Zero dependencies, zero architectural mutations.
+ * Enhanced client-side SEO manager with Schema.org E-Commerce Rich Snippets
+ * Safely updates document.title, canonical URL, meta description, Open Graph, and Product JSON-LD on route changes.
  */
 export const useDocumentSeo = ({
   title,
@@ -53,6 +78,7 @@ export const useDocumentSeo = ({
   ogImageAlt,
   ogType = 'website',
   noindex = false,
+  productData,
 }: SeoProps) => {
   useEffect(() => {
     // 1. Page Title
@@ -97,5 +123,61 @@ export const useDocumentSeo = ({
     updateMetaTag('meta[name="twitter:url"]', 'content', finalCanonical);
     updateMetaTag('meta[name="twitter:image"]', 'content', finalOgImage);
     updateMetaTag('meta[name="twitter:image:alt"]', 'content', finalOgAlt);
-  }, [title, description, canonicalPath, ogImage, ogImageAlt, ogType, noindex]);
+
+    // 7. Product-Specific OpenGraph & Schema.org JSON-LD (E-Commerce Rich Snippets)
+    if (productData) {
+      updateMetaTag('meta[property="product:price:amount"]', 'content', productData.price.toString());
+      updateMetaTag('meta[property="product:price:currency"]', 'content', 'INR');
+      updateMetaTag(
+        'meta[property="product:availability"]',
+        'content',
+        productData.inStock ? 'in stock' : 'preorder'
+      );
+
+      const jsonLdData = {
+        '@context': 'https://schema.org/',
+        '@type': 'Product',
+        name: productData.name,
+        image: productData.images && productData.images.length > 0 ? productData.images : [finalOgImage],
+        description: finalDesc,
+        sku: productData.sku || productData.name.toLowerCase().replace(/\s+/g, '-'),
+        brand: {
+          '@type': 'Brand',
+          name: 'Diyas N Duas',
+        },
+        offers: {
+          '@type': 'Offer',
+          url: finalCanonical,
+          priceCurrency: 'INR',
+          price: productData.price,
+          priceValidUntil: '2027-12-31',
+          availability: productData.inStock
+            ? 'https://schema.org/InStock'
+            : 'https://schema.org/PreOrder',
+          itemCondition: 'https://schema.org/NewCondition',
+        },
+      };
+      updateJsonLd('dnd-product-jsonld', jsonLdData);
+    } else {
+      updateJsonLd('dnd-product-jsonld', null);
+    }
+
+    return () => {
+      // Clean up product-specific tags on unmount
+      if (productData) {
+        updateJsonLd('dnd-product-jsonld', null);
+      }
+    };
+  }, [
+    title,
+    description,
+    canonicalPath,
+    ogImage,
+    ogImageAlt,
+    ogType,
+    noindex,
+    productData?.name,
+    productData?.price,
+    productData?.inStock,
+  ]);
 };

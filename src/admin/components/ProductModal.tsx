@@ -1,3 +1,5 @@
+import { slugify, copyProductLink } from '../../utils/slugify';
+import { useToast } from '../../contexts/ToastContext';
 import React, { useEffect, useState, useRef } from 'react';
 import { Product, ProductDraft, ProductSection } from '../../types/product';
 import { Category } from '../../types/category';
@@ -40,6 +42,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [isFeatured, setIsFeatured] = useState(false);
   const [allowPreOrder, setAllowPreOrder] = useState(false);
   const [saving, setSaving] = useState(false);
+  const toast = useToast();
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -162,6 +165,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         .filter((s) => s.content.length > 0 || (s.title && s.title.length > 0));
 
       const draft: ProductDraft = {
+      slug: slugify(name),
         name: name.trim(),
         description: description.trim(),
         sections: cleanedSections.length > 0 ? cleanedSections : undefined,
@@ -200,6 +204,32 @@ export const ProductModal: React.FC<ProductModalProps> = ({
           error={errors.name}
           leftIcon={<Package className="w-4 h-4" />}
         />
+
+        {/* Dedicated Ecommerce Link Live Preview */}
+        {name.trim() && (
+          <div className="p-3 rounded-2xl bg-brand-50/70 dark:bg-brand-950/40 border border-brand-200 dark:border-brand-800/60 flex items-center justify-between gap-3 text-xs">
+            <div className="min-w-0">
+              <span className="text-[10px] uppercase font-black tracking-wider text-brand-600 dark:text-brand-400 block">
+                🔗 Dedicated Shareable Link (Auto-Generated)
+              </span>
+              <span className="font-mono text-xs text-slate-800 dark:text-slate-200 truncate block mt-0.5">
+                diyasnduas.com/p/{slugify(name)}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const dummy = { id: product?.id || 'new', name: name.trim() };
+                copyProductLink(dummy, () => {
+                  toast.success('Link Copied! 🔗', 'Product URL copied to clipboard.');
+                });
+              }}
+              className="px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 font-bold border border-slate-200 dark:border-slate-700 shadow-2xs hover:bg-slate-50 transition-colors text-xs flex-shrink-0"
+            >
+              Copy Link
+            </button>
+          </div>
+        )}
 
         {categoryOptions.length > 0 && (
           <Select

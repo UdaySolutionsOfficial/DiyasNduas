@@ -26,8 +26,16 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
   onResetFilters,
   showAdvancedFilter = true,
 }) => {
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [categories, setCategories] = useState<Category[]>(() => {
+    try {
+      return typeof categoriesService.getCachedCategories === 'function'
+        ? categoriesService.getCachedCategories()
+        : [];
+    } catch (_) {
+      return [];
+    }
+  });
+  const [loading, setLoading] = useState(() => categories.length === 0);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isMobileExpanded, setIsMobileExpanded] = useState(false);
 
@@ -161,11 +169,18 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
     }
   };
 
-  if (loading) {
+  if (loading && categories.length === 0) {
     return (
-      <div className="flex gap-2 overflow-x-auto py-2 scrollbar-none">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="h-8 w-28 rounded-full bg-slate-200 dark:bg-slate-800 animate-pulse flex-shrink-0" />
+      <div className="flex gap-2 overflow-x-auto py-2 scrollbar-none items-center">
+        <Pill
+          active={selectedCategoryId === null}
+          onClick={() => onSelectCategory(null)}
+          className="text-xs font-bold py-1.5 px-3 flex-shrink-0"
+        >
+          ✨ All Diyas
+        </Pill>
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="h-8 w-24 rounded-full bg-slate-200/80 dark:bg-slate-800/80 animate-pulse flex-shrink-0" />
         ))}
       </div>
     );
